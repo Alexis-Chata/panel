@@ -15,24 +15,13 @@ class ScoreUpdated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $sessionId;
-    public $participantId;
-    public $scores;
-
     /**
      * Create a new event instance.
      */
-    public function __construct(int $sessionId, int $participantId)
-    {
-        $this->sessionId = $sessionId;
-        $this->participantId = $participantId;
-        $this->scores = [
-            'phase1' => null,
-            'phase2' => null,
-            'phase3' => null,
-            'total' => null,
-        ];
-    }
+    public function __construct(
+        public int $sessionId,
+        public int $participantId,
+    ) {}
 
     /**
      * Get the channels the event should broadcast on.
@@ -42,19 +31,20 @@ class ScoreUpdated implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('channel-name'),
+            new PrivateChannel("sessions.{$this->sessionId}.scores"),
         ];
     }
 
-    public function broadcastWith()
+    public function broadcastAs(): string
     {
-        $participant = \App\Models\SessionParticipant::find($this->participantId);
+        return 'ScoreUpdated';
+    }
+
+    public function broadcastWith(): array
+    {
         return [
+            'session_id'     => $this->sessionId,
             'participant_id' => $this->participantId,
-            'phase1_score'   => $participant->phase1_score,
-            'phase2_score'   => $participant->phase2_score,
-            'phase3_score'   => $participant->phase3_score,
-            'total_score'    => $participant->total_score,
         ];
     }
 }

@@ -2,6 +2,12 @@
 
 use Illuminate\Support\Facades\Route;
 
+if (app()->isLocal()) {
+    Route::get('/ping', function () {
+        event(new \App\Events\Ping('hola desde /ping'));
+        return 'Ping emitido';
+    });
+}
 Route::get('/', function () {
     return view('welcome');
 })->name('home');

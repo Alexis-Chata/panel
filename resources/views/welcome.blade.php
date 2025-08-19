@@ -248,5 +248,21 @@
         @if (Route::has('login'))
             <div class="h-14.5 hidden lg:block"></div>
         @endif
+        <script type="module">
+            document.addEventListener('DOMContentLoaded', () => {
+            console.log('Echo cargado?', window.Echo);
+
+            if (!window.Echo) return console.error('Echo no inicializado');
+
+            window.Echo.channel('ping')
+                .listen('.Ping', (e) => {
+                console.log('Evento Ping:', e);
+                });
+
+            const conn = window.Echo.connector.pusher.connection;
+            conn.bind('state_change', s => console.log('WS state:', s));
+            conn.bind('error', err => console.error('WS error:', err));
+            });
+        </script>
     </body>
 </html>

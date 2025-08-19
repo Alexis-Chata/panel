@@ -2,7 +2,6 @@
 
 namespace App\Events;
 
-use App\Models\GameSession;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
@@ -12,14 +11,14 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class SessionPhaseChanged implements ShouldBroadcastNow
+class ping implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     /**
      * Create a new event instance.
      */
-    public function __construct(public GameSession $session)
+    public function __construct(public string $msg = 'pong')
     {
         //
     }
@@ -29,24 +28,19 @@ class SessionPhaseChanged implements ShouldBroadcastNow
      *
      * @return array<int, \Illuminate\Broadcasting\Channel>
      */
+
     public function broadcastOn(): array
     {
-        return [
-            new PrivateChannel("sessions.{$this->session->id}.phase")
-        ];
+        return [new Channel('ping')]; // canal público
     }
 
     public function broadcastAs(): string
     {
-        return 'SessionPhaseChanged';
+        return 'Ping';
     }
 
     public function broadcastWith(): array
     {
-        return [
-            'session_id'    => $this->session->id,
-            'current_phase' => $this->session->current_phase,
-            'status'        => $this->session->status,
-        ];
+        return ['time' => now()->toISOString(), 'msg' => $this->msg];
     }
 }
