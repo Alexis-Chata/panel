@@ -18,7 +18,6 @@ window.Echo = new Echo({
     disableStats: true,
 });
 
-dlog("dEcho opts:", window.Echo.options);
 console.log("Echo opts:", window.Echo.options);
 const DEBUG_WS = (import.meta.env.VITE_DEBUG_WS ?? "false") === "true";
 
@@ -26,6 +25,8 @@ const DEBUG_WS = (import.meta.env.VITE_DEBUG_WS ?? "false") === "true";
 const dlog = (...a) => DEBUG_WS && console.log(...a);
 const dwarn = (...a) => DEBUG_WS && console.warn(...a);
 const derr = (...a) => DEBUG_WS && console.error(...a);
+
+dlog("dEcho opts:", window.Echo.options);
 
 // ===== Echo connection timing & RTT metrics (solo si DEBUG_WS) =====
 if (DEBUG_WS)

@@ -45,7 +45,7 @@ class PhaseOrchestrator
                         'game_session_id' => $s->id,
                         'participant_id' => $pid,
                         'question_id' => $q->id,
-                        'match_id' => $m->id,
+                        'game_match_id' => $m->id,
                         'phase' => 2,
                         'order' => $order++,
                     ]);

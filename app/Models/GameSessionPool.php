@@ -13,7 +13,7 @@ class GameSessionPool extends Model
         return $this->belongsTo(GameSession::class);
     }
 
-    public function pool()
+    public function questionPool()
     {
         return $this->belongsTo(QuestionPool::class);
     }

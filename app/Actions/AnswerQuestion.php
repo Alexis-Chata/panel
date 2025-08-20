@@ -46,7 +46,7 @@ class AnswerQuestion
         }
 
         // emitir evento realtime
-        event(new \App\Events\ScoreUpdated($aq->session_id, $aq->participant_id));
+        event(new \App\Events\ScoreUpdated($aq->game_session_id, $aq->participant_id));
 
         return $ans;
     }
@@ -64,32 +64,36 @@ class AnswerQuestion
 
     protected function maybeAssignPhase3Bonus(AssignedQuestion $aq): void
     {
-        $session = $aq->session;
-        $settings = $session->settings_json ?? [];
+        $sessionId = $aq->game_session_id;                  // ← usa la FK directa
+        $settings  = $aq->session?->settings_json ?? [];    // ← opcional, para leer bonus desde la sesión si existe
+
         $bonus = [
             1 => data_get($settings, 'phase3.bonus_first', 3),
             2 => data_get($settings, 'phase3.bonus_second', 2),
             3 => data_get($settings, 'phase3.bonus_third', 1),
         ];
 
-        // ¿Cuántos correctos tiene ya esa pregunta en esta sesión?
-        $correctAlready = Phase3Bonus::where('game_session_id', $session->id)
+        // ¿Cuántos correctos ya tiene esa pregunta en esta sesión?
+        $correctAlready = Phase3Bonus::where('game_session_id', $sessionId)
             ->where('question_id', $aq->question_id)->count();
 
         if ($correctAlready < 3) {
             $rank = $correctAlready + 1;
             Phase3Bonus::create([
-                'game_session_id' => $session->id,
-                'question_id' => $aq->question_id,
-                'participant_id' => $aq->participant_id,
-                'rank' => $rank,
-                'points' => $bonus[$rank] ?? 0,
+                'game_session_id' => $sessionId,
+                'question_id'     => $aq->question_id,
+                'participant_id'  => $aq->participant_id,
+                'rank'            => $rank,
+                'points'          => $bonus[$rank] ?? 0,
             ]);
 
-            if ($bonus[$rank] ?? 0) {
+            if (($bonus[$rank] ?? 0) > 0) {
                 $p = $aq->participant;
                 $p->increment('phase3_score', $bonus[$rank]);
-                $p->increment('total_score', $bonus[$rank]);
+                $p->increment('total_score',  $bonus[$rank]);
+
+                // (Opcional pero recomendado) emitir actualización de score por el bonus también:
+                event(new \App\Events\ScoreUpdated($sessionId, $aq->participant_id));
             }
         }
     }

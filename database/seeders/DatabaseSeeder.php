@@ -21,6 +21,9 @@ class DatabaseSeeder extends Seeder
 
         User::factory(10)->create();
 
-        $this->call(GameSessionSeeder::class);
+        $this->call([
+            QuestionBankSeeder::class,
+            GameSessionSeeder::class,
+        ]);
     }
 }

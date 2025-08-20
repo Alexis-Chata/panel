@@ -22,7 +22,7 @@ class AssignedQuestion extends Model
 
     public function session()
     {
-        return $this->belongsTo(GameSession::class);
+        return $this->belongsTo(GameSession::class, 'game_session_id');
     }
 
     public function participant()

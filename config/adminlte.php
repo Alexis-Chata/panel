@@ -256,7 +256,7 @@ return [
     |
     */
 
-    'use_route_url' => false,
+    'use_route_url' => true,
     'dashboard_url' => 'home',
     'logout_url' => 'logout',
     'login_url' => 'login',
@@ -299,6 +299,27 @@ return [
     */
 
     'menu' => [
+        // ——— Sección Jugador ———
+        ['header' => 'JUGADOR'],
+
+        [
+            'text'   => 'Unirse a una partida',
+            'route'  => 'player.join',        // GET /join
+            'icon'   => 'fas fa-sign-in-alt',
+            'active' => ['join'],             // resalta cuando estás en /join
+        ],
+
+        // ——— Sección Admin ———
+        ['header' => 'ADMIN'],
+
+        [
+            'text'   => 'Partidas',
+            'route'  => 'admin.sessions.index', // GET /admin/sessions
+            'icon'   => 'fas fa-gamepad',
+            'active' => ['admin/sessions*'],    // resalta en index y lobby
+            // 'can' => 'manage-sessions',       // si luego usas Gate/Policy
+        ],
+
         // Navbar items:
         [
             'type' => 'navbar-search',
@@ -475,7 +496,7 @@ return [
             ],
         ],
         'Sweetalert2' => [
-            'active' => false,
+            'active' => true,
             'files' => [
                 [
                     'type' => 'js',
@@ -546,5 +567,5 @@ return [
     |
     */
 
-    'livewire' => false,
+    'livewire' => true,
 ];

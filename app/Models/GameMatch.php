@@ -41,6 +41,6 @@ class GameMatch extends Model
 
     public function assignedQuestions()
     {
-        return $this->hasMany(AssignedQuestion::class, 'match_id');
+        return $this->hasMany(AssignedQuestion::class, 'game_match_id');
     }
 }
