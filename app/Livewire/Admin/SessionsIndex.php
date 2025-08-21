@@ -5,6 +5,7 @@ namespace App\Livewire\Admin;
 use App\Models\GameSession;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -49,6 +50,15 @@ class SessionsIndex extends Component
 
         $this->title = '';
         redirect()->route('admin.sessions.lobby', $s->id);
+    }
+
+    #[On('sessions-index-refresh')]
+    public function realtimeRefresh(): void
+    {
+        // Basta con forzar un re-render; si computas $sessions en render() se actualizará solo
+        $this->dispatch('$refresh');
+        // Si tienes estados de paginación, puedes opcionalmente hacer:
+        // $this->resetPage();
     }
 
     public function render()

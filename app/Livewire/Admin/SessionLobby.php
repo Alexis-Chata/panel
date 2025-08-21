@@ -13,6 +13,11 @@ use Livewire\Component;
 #[Layout('layouts.adminlte-livewire')]
 class SessionLobby extends Component
 {
+    public function render()
+    {
+        return view('livewire.admin.session-lobby')->title("Partida — {$this->session->title}");
+    }
+
     public GameSession $session;
 
     public function mount(GameSession $session)
@@ -52,6 +57,7 @@ class SessionLobby extends Component
 
     #[On('phase-changed')]
     #[On('score-updated')]
+    #[On('participant-updated')]
     public function refreshSession(): void
     {
         $this->session->refresh();
@@ -66,13 +72,8 @@ class SessionLobby extends Component
 
     public function getMatchesProperty()
     {
-        return GameMatch::with(['p1.user','p2.user','winner'])
+        return GameMatch::with(['p1.user', 'p2.user', 'winner'])
             ->where('game_session_id', $this->session->id)
             ->orderBy('id')->get();
-    }
-
-    public function render()
-    {
-        return view('livewire.admin.session-lobby')->title("Partida — {$this->session->title}");
     }
 }

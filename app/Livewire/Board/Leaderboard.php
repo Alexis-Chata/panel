@@ -23,6 +23,7 @@ class Leaderboard extends Component
 
     #[On('score-updated')]
     #[On('phase-changed')]
+    #[On('participant-updated')]
     public function refreshBoard(): void
     {
         $this->session->refresh();

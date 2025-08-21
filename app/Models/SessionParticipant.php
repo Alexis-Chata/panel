@@ -21,6 +21,22 @@ class SessionParticipant extends Model
 
     protected $casts = ['meta' => 'array', 'joined_at' => 'datetime'];
 
+    protected static function booted(): void
+    {
+        static::created(function (self $p) {
+            event(new \App\Events\ParticipantUpdated($p->game_session_id, $p->id));
+        });
+
+        static::updated(function (self $p) {
+            event(new \App\Events\ParticipantUpdated($p->game_session_id, $p->id));
+        });
+
+        // (Opcional)
+        // static::deleted(function (self $p) {
+        //     event(new \App\Events\ParticipantUpdated($p->game_session_id, $p->id));
+        // });
+    }
+
     public function session()
     {
         return $this->belongsTo(GameSession::class, 'game_session_id');

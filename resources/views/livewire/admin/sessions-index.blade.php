@@ -59,7 +59,7 @@
                 </thead>
                 <tbody>
                     @forelse($sessions as $s)
-                        <tr>
+                        <tr data-session-id="{{ $s->id }}">
                             <td>{{ $s->id }}</td>
                             <td>
                                 <code class="me-2">{{ $s->code }}</code>
@@ -91,27 +91,123 @@
         @endif
     </div>
 
+    {{-- Suscripción a eventos realtime para refrescar la lista --}}
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Conjunto global para evitar suscripciones duplicadas
+            window.__sessionsIndexSubs = window.__sessionsIndexSubs || new Set();
+
+            const collectIdsFromDom = () =>
+                Array.from(document.querySelectorAll('tbody tr[data-session-id]'))
+                .map(tr => Number(tr.getAttribute('data-session-id')))
+                .filter(Boolean);
+
+            const subscribeOne = (id) => {
+                if (window.__sessionsIndexSubs.has(id)) return;
+                window.__sessionsIndexSubs.add(id);
+
+                const chScores = window.Echo?.private(`sessions.${id}.scores`);
+                const chPhase = window.Echo?.private(`sessions.${id}.phase`);
+
+                chScores
+                    ?.listen('.ScoreUpdated', () => window.Livewire?.dispatch('sessions-index-refresh', {
+                        session_id: id
+                    }))
+                    ?.listen('.ParticipantUpdated', () => window.Livewire?.dispatch('sessions-index-refresh', {
+                        session_id: id
+                    }));
+
+                chPhase
+                    ?.listen('.SessionPhaseChanged', () => window.Livewire?.dispatch('sessions-index-refresh', {
+                        session_id: id
+                    }));
+            };
+
+            // Suscribe a los IDs presentes al cargar
+            collectIdsFromDom().forEach(subscribeOne);
+
+            // Si Livewire re-renderiza la tabla (paginación/filtros), subscribir nuevos IDs
+            const tbody = document.querySelector('tbody');
+            if (tbody) {
+                const mo = new MutationObserver(() => {
+                    collectIdsFromDom().forEach(subscribeOne);
+                });
+                mo.observe(tbody, {
+                    childList: true
+                });
+            }
+        });
+    </script>
+
     {{-- JS para copiar código (opcional SweetAlert si lo tienes cargado) --}}
     <script>
-        document.addEventListener('click', (e) => {
+        async function copyText(text) {
+            // 1) Intento moderno si hay contexto seguro
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+            // 2) Fallback para HTTP/lan o navegadores viejos
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.top = '-9999px';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+
+            let ok = false;
+            try {
+                ok = document.execCommand('copy');
+            } catch (e) {
+                ok = false;
+            }
+            document.body.removeChild(ta);
+            return ok;
+        }
+
+        document.addEventListener('click', async (e) => {
             const btn = e.target.closest('[data-copy]');
             if (!btn) return;
-            const code = btn.getAttribute('data-copy');
-            navigator.clipboard?.writeText(code).then(() => {
-                if (window.Swal) {
-                    Swal.fire({
+
+            const code = btn.getAttribute('data-copy') ?? '';
+            try {
+                const ok = await copyText(code);
+                const msg = ok ? {
                         title: 'Copiado',
                         text: code,
-                        icon: 'success',
+                        icon: 'success'
+                    } :
+                    {
+                        title: 'Error',
+                        text: 'No se pudo copiar',
+                        icon: 'error'
+                    };
+
+                if (window.Swal) {
+                    Swal.fire({
+                        ...msg,
                         timer: 900,
                         showConfirmButton: false
                     });
                 } else {
-                    alert('Copiado: ' + code);
+                    alert(`${msg.title}: ${msg.text}`);
                 }
-            });
+            } catch (err) {
+                if (window.Swal) {
+                    Swal.fire({
+                        title: 'Error',
+                        text: String(err),
+                        icon: 'error'
+                    });
+                } else {
+                    alert('Error: ' + err);
+                }
+            }
         }, {
             passive: true
         });
     </script>
+
 </div>

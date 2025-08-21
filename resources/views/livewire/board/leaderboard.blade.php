@@ -49,10 +49,11 @@
             // y aquí suscribirte con Echo.channel(...). Con canales privados necesitas auth.
 
             window.Echo?.private(`sessions.${sessionId}.scores`)
-                .listen('.ScoreUpdated', (e) => window.Livewire?.dispatch('score-updated', e));
+                .listen('.ScoreUpdated', () => window.Livewire?.dispatch('score-updated'))
+                .listen('.ParticipantUpdated', () => window.Livewire?.dispatch('participant-updated'));
 
             window.Echo?.private(`sessions.${sessionId}.phase`)
-                .listen('.SessionPhaseChanged', (e) => window.Livewire?.dispatch('phase-changed'));
+                .listen('.SessionPhaseChanged', () => window.Livewire?.dispatch('phase-changed'));
         });
     </script>
 </div>
