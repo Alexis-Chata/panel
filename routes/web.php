@@ -35,4 +35,9 @@ Route::middleware(['auth'/*, 'can:manage-sessions'*/])->group(function () {
 });
 
 // Pizarra pública (solo lectura)
-Route::get('/board/{session}', \App\Livewire\Board\Leaderboard::class)->name('board.show');
+// Route::get('/board/{session}', \App\Livewire\Board\Leaderboard::class)->name('board.show');
+
+// Board privada (requiere login)
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/board/{session}', \App\Livewire\Board\Leaderboard::class)->name('board.show');
+});

@@ -11,11 +11,13 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 Broadcast::channel('sessions.{sessionId}.scores', function (User $user, int $sessionId) {
     return SessionParticipant::where('game_session_id', $sessionId)
         ->where('user_id', $user->id)
-        ->exists();
+        ->exists()
+        || $user->can('manage-sessions'); // admins
 });
 
 Broadcast::channel('sessions.{sessionId}.phase', function (User $user, int $sessionId) {
     return SessionParticipant::where('game_session_id', $sessionId)
         ->where('user_id', $user->id)
-        ->exists();
+        ->exists()
+        || $user->can('manage-sessions'); // admins
 });

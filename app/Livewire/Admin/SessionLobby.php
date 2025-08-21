@@ -36,14 +36,17 @@ class SessionLobby extends Component
 
     public function toResults(): void
     {
-        $this->session->update(['status' => 'results']);
-        // Broadcast ya lo haces con SessionPhaseChanged en tu flujo si lo deseas
+        $this->session->update(['status' => 'results', 'current_phase' => 0]);
+        $this->session->refresh();
+        event(new \App\Events\SessionPhaseChanged($this->session));
         $this->refreshSession();
     }
 
     public function finish(): void
     {
-        $this->session->update(['status' => 'finished']);
+        $this->session->update(['status' => 'finished', 'current_phase' => 0]);
+        $this->session->refresh();
+        event(new \App\Events\SessionPhaseChanged($this->session));
         $this->refreshSession();
     }
 
