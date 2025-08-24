@@ -13,8 +13,11 @@
         <div class="alert alert-info">No hay más preguntas por ahora. Espera instrucciones…</div>
     @else
         <div class="card">
-            <div class="card-header">
-                Pregunta #{{ $current->order }} (fase {{ $current->phase }})
+            <div class="card-header d-flex justify-content-between">
+                <span>Pregunta #{{ $current->order }} (fase {{ $current->phase }})</span>
+                <span class="timer-wrap" data-deadline="{{ $deadlineIso ?? '' }}" data-qid="{{ $current?->id ?? '' }}">
+                    ⏳ <b class="js-timer" wire:ignore>—</b>s
+                </span>
             </div>
             <div class="card-body">
                 <p class="lead mb-3">{{ $current->question->stem }}</p>
@@ -24,7 +27,7 @@
                 {{-- Enviamos TODO en un único submit --}}
                 <form wire:submit.prevent="answer">
                     @if (in_array($type, ['single', 'boolean']))
-                        @foreach ($current->question->options()->orderBy('order')->get() as $idx => $opt)
+                        @foreach ($current->question->options as $idx => $opt)
                             <div class="form-check mb-2">
                                 <input class="form-check-input" type="radio" name="answer_option"
                                     id="opt{{ $opt->id }}" value="{{ $opt->id }}"
@@ -53,7 +56,83 @@
         </div>
     @endif
 
-    {{-- JS de suscripciones y SweetAlert, dentro del root para mantener un solo top-level --}}
+    {{-- Countdown: usa expires_at (deadlineIso) calculado en servidor --}}
+    <script>
+        (() => {
+            // Reinicia un único contador <b class="js-timer"> dentro de su .timer-wrap
+            function bootTimer(wrap) {
+                const b = wrap.querySelector('.js-timer');
+                if (!b) return;
+
+                // Limpia timer previo si existe
+                if (b._timerId) {
+                    clearInterval(b._timerId);
+                    b._timerId = null;
+                }
+
+                const iso = wrap.getAttribute('data-deadline');
+                if (!iso) {
+                    b.textContent = '—';
+                    return;
+                }
+
+                const deadline = Date.parse(iso);
+                if (Number.isNaN(deadline)) {
+                    b.textContent = '—';
+                    return;
+                }
+
+                const compId = wrap.closest('[wire\\:id]')?.getAttribute('wire:id');
+
+                const tick = () => {
+                    const remain = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+                    b.textContent = remain;
+                    if (remain === 0) {
+                        clearInterval(b._timerId);
+                        b._timerId = null;
+                        const comp = compId && window.Livewire?.find(compId);
+                        comp && comp.call('timeUp');
+                    }
+                };
+
+                b._timerId = setInterval(tick, 250);
+                tick();
+            }
+
+            // Escanea todos los contadores visibles
+            function scan(root = document) {
+                root.querySelectorAll('.timer-wrap').forEach(bootTimer);
+            }
+
+            // 1) Inicial inmediato
+            scan();
+
+            // 2) Observa cambios del DOM y del atributo data-deadline en cualquier .timer-wrap
+            const observer = new MutationObserver((muts) => {
+                for (const m of muts) {
+                    if (m.type === 'childList') {
+                        m.addedNodes.forEach((n) => {
+                            if (n.nodeType !== 1) return;
+                            if (n.matches?.('.timer-wrap')) bootTimer(n);
+                            n.querySelectorAll?.('.timer-wrap').forEach(bootTimer);
+                        });
+                    }
+                    if (m.type === 'attributes' && m.target.matches?.('.timer-wrap')) {
+                        if (m.attributeName === 'data-deadline') bootTimer(m.target);
+                    }
+                }
+            });
+
+            observer.observe(document.documentElement, {
+                subtree: true,
+                childList: true,
+                attributes: true,
+                attributeFilter: ['data-deadline']
+            });
+        })();
+    </script>
+
+    {{-- Suscripciones realtime --}}
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const sessionId = @json($session->id);

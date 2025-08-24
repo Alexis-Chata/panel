@@ -95,6 +95,7 @@ class QuestionBankSeeder extends Seeder
                 'media' => null,
                 'difficulty' => 1,
                 'meta' => null,
+                'time_limit_seconds' => 20
             ]);
             foreach ($options as $i => $label) {
                 QuestionOption::create([
@@ -119,6 +120,7 @@ class QuestionBankSeeder extends Seeder
                 'media' => null,
                 'difficulty' => 1,
                 'meta' => null,
+                'time_limit_seconds' => 20
             ]);
             // true / false
             QuestionOption::create([
@@ -149,6 +151,7 @@ class QuestionBankSeeder extends Seeder
                 'media' => null,
                 'difficulty' => 1,
                 'meta' => ['answer_numeric' => (string) $answer],
+                'time_limit_seconds' => 20
             ]);
         }
     }
@@ -164,6 +167,7 @@ class QuestionBankSeeder extends Seeder
                 'media' => null,
                 'difficulty' => 1,
                 'meta' => ['answer_text' => (string) $answer],
+                'time_limit_seconds' => 20
             ]);
         }
     }

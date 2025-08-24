@@ -21,3 +21,8 @@ Broadcast::channel('sessions.{sessionId}.phase', function (User $user, int $sess
         ->exists()
         || $user->can('manage-sessions'); // admins
 });
+
+Broadcast::channel('sessions.{sessionId}.participants', function (User $user, int $sessionId) {
+    return $user->can('view-board', $sessionId)
+        || $user->can('manage-sessions');
+});

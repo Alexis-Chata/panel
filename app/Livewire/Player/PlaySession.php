@@ -28,6 +28,9 @@ class PlaySession extends Component
     public ?string $freeText = null; // para numeric/text
     public bool $busy = false;
 
+    // Para countdown en cliente (ISO8601)
+    public ?string $deadlineIso = null;
+
     public function mount(GameSession $session)
     {
         $this->session = $session;
@@ -53,6 +56,40 @@ class PlaySession extends Component
         // limpia selección para la siguiente pregunta
         $this->selectedOptionId = null;
         $this->freeText = null;
+
+        $this->ensureTimerForCurrent();
+    }
+
+    /**
+     * Fija ventana temporal si no existe:
+     * - available_at = now() (si null)
+     * - expires_at   = available_at + time_limit_seconds
+     * Expone $deadlineIso para countdown en cliente.
+     */
+    protected function ensureTimerForCurrent(): void
+    {
+        $this->deadlineIso = null;
+
+        if (!$this->current) return;
+
+        $changed = false;
+
+        if (!$this->current->available_at) {
+            $this->current->available_at = now();
+            $changed = true;
+        }
+
+        if (!$this->current->expires_at) {
+            $seconds = max(3, (int)($this->current->question->time_limit_seconds ?? 20));
+            $this->current->expires_at = $this->current->available_at->clone()->addSeconds($seconds);
+            $changed = true;
+        }
+
+        if ($changed) {
+            $this->current->save();
+        }
+
+        $this->deadlineIso = optional($this->current->expires_at)?->toIso8601String();
     }
 
     public function answer(): void
@@ -94,24 +131,69 @@ class PlaySession extends Component
                 return;
             }
 
+            // response_ms = max(0, min(now, expires_at) - available_at)
+            $start = $this->current->available_at;
+            $end = $this->current->expires_at && now()->greaterThan($this->current->expires_at)
+                ? $this->current->expires_at
+                : now();
+
+            $responseMs = $start ? max(0, $start->diffInRealMilliseconds($end)) : 0;
+
             $ans = app(AnswerQuestion::class)->handle(
                 $this->current,
                 $option,
                 $freeText,
-                0 // TODO: medir response_ms desde JS si luego agregamos timers
+                $responseMs
             );
 
             $this->dispatch(
                 'swal',
                 title: $ans->is_correct ? '¡Correcto!' : 'Incorrecto',
-                icon: $ans->is_correct ? 'success' : 'error'
+                icon: $ans->is_correct ? 'success'   : 'error'
             );
 
-            $this->loadCurrent();          // pasa a la siguiente (si existe)
+            $this->loadCurrent();          // avanza a la siguiente
             $this->participant->refresh(); // refresca puntaje local
         } finally {
             $this->busy = false; // siempre libera
         }
+    }
+
+    /**
+     * Llamado desde JS al terminar el countdown.
+     * Si no hay respuesta y ya expiró, registra incorrecta y avanza.
+     */
+    public function timeUp(): void
+    {
+        if (!$this->current) return;
+
+        $this->current->refresh();
+
+        if ($this->current->answer) {
+            $this->loadCurrent();
+            return;
+        }
+
+        if ($this->current->expires_at && now()->lessThan($this->current->expires_at)) {
+            // Aún no expiró (carrera); salir.
+            return;
+        }
+
+        $start = $this->current->available_at;
+        $end   = $this->current->expires_at;
+
+        // duración total asignada (cap superior)
+        $responseMs = ($start && $end) ? max(0, $start->diffInRealMilliseconds($end)) : 0;
+
+        app(AnswerQuestion::class)->handle(
+            $this->current,
+            null,
+            null,
+            $responseMs
+        );
+
+        $this->loadCurrent();
+        $this->participant->refresh();
     }
 
     #[On('phase-changed')]

@@ -20,6 +20,7 @@ return new class extends Migration
             $table->json('media')->nullable();
             $table->unsignedTinyInteger('difficulty')->default(1);
             $table->json('meta')->nullable();
+            $table->unsignedSmallInteger('time_limit_seconds')->default(20);
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
             $table->softDeletes();

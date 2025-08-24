@@ -30,9 +30,8 @@ class ParticipantUpdated implements ShouldBroadcastNow
      */
     public function broadcastOn(): array
     {
-        // Reutilizamos el canal privado de scores para no abrir nuevos
         return [
-            new PrivateChannel("sessions.{$this->sessionId}.scores"),
+            new PrivateChannel("sessions.{$this->sessionId}.participants"),
         ];
     }
 

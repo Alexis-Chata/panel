@@ -104,11 +104,13 @@
             const sessionId = @json($session->id);
 
             window.Echo?.private(`sessions.${sessionId}.scores`)
-                .listen('.ScoreUpdated', () => window.Livewire?.dispatch('score-updated'))
-                .listen('.ParticipantUpdated', () => window.Livewire?.dispatch('participant-updated'));
+                .listen('.ScoreUpdated', () => window.Livewire?.dispatch('score-updated'));
 
             window.Echo?.private(`sessions.${sessionId}.phase`)
                 .listen('.SessionPhaseChanged', () => window.Livewire?.dispatch('phase-changed'));
+
+            window.Echo?.private(`sessions.${sessionId}.participants`)
+                .listen('.ParticipantUpdated', () => window.Livewire?.dispatch('participant-updated'));
 
             document.getElementById('copy-code')?.addEventListener('click', () => {
                 const code = document.getElementById('sess-code')?.textContent?.trim();

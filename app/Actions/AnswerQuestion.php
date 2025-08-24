@@ -13,6 +13,7 @@ class AnswerQuestion
 {
     public function handle(AssignedQuestion $aq, ?QuestionOption $option, ?string $freeText, int $responseMs): Answer
     {
+        $responseMs = max(0, (int)$responseMs);
         $isCorrect = $this->checkCorrect($aq->question, $option, $freeText);
 
         $ans = Answer::create([
