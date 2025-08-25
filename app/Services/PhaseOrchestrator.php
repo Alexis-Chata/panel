@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\SessionPhaseChanged;
 use App\Models\AssignedQuestion;
 use App\Models\GameSession;
 
@@ -26,17 +27,21 @@ class PhaseOrchestrator
         }
 
         $s->update(['status' => 'phase1', 'current_phase' => 1]);
-        event(new \App\Events\SessionPhaseChanged($s));
+        event(new SessionPhaseChanged($s));
     }
 
     public function startPhase2(GameSession $s): void
     {
         app(Matchmaker::class)->make($s);
 
-        $perPlayer = $s->phase2_count;
+        $perPlayer = (int) $s->phase2_count;
         $questions = app(PoolMixer::class)->pickForPhase($s, 'phase2', $perPlayer);
 
+        // Asegúrate de tener los matches recién creados
+        $s->load('matches');
+
         foreach ($s->matches as $m) {
+            // Asignar preguntas a p1 y p2 (si existe)
             foreach ([$m->player1_participant_id, $m->player2_participant_id] as $pid) {
                 if (!$pid) continue; // bye
                 $order = 1;
@@ -51,10 +56,15 @@ class PhaseOrchestrator
                     ]);
                 }
             }
+            // Cambiar estado del match a 'active'
+            $m->update([
+                'status'    => 'active',
+                'starts_at' => now(),
+            ]);
         }
 
         $s->update(['status' => 'phase2', 'current_phase' => 2]);
-        event(new \App\Events\SessionPhaseChanged($s));
+        event(new SessionPhaseChanged($s));
     }
 
     public function startPhase3(GameSession $s): void
@@ -76,6 +86,6 @@ class PhaseOrchestrator
         }
 
         $s->update(['status' => 'phase3', 'current_phase' => 3]);
-        event(new \App\Events\SessionPhaseChanged($s));
+        event(new SessionPhaseChanged($s));
     }
 }
