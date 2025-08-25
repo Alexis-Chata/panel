@@ -13,8 +13,28 @@
         <div class="alert alert-info">No hay más preguntas por ahora. Espera instrucciones…</div>
     @else
         <div class="card">
-            <div class="card-header d-flex justify-content-between">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <span>Pregunta #{{ $current->order }} (fase {{ $current->phase }})</span>
+
+                @if ((int) $current->phase === 2)
+                    <span class="badge bg-secondary">
+                        Ronda {{ $phase2Round }} / {{ $phase2Total }}
+                    </span>
+                    <span class="ms-2">
+                        @php
+                            $me = $participant->nickname ?? $participant->user?->name;
+                            $opp = $opponent?->nickname ?? ($opponent?->user?->name ?? 'BYE');
+                        @endphp
+                        ⚔️ {{ $me }} vs {{ $opp }}
+                    </span>
+                    <span class="ms-2">
+                        (F2: {{ $participant->phase2_score }} pts
+                        @if ($opponent)
+                            — Rival: {{ $opponent->phase2_score }} pts
+                        @endif)
+                    </span>
+                @endif
+
                 <span class="timer-wrap" data-deadline="{{ $deadlineIso ?? '' }}" data-qid="{{ $current?->id ?? '' }}">
                     ⏳ <b class="js-timer" wire:ignore>—</b>s
                 </span>

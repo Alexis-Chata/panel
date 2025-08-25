@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Models\SessionParticipant;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
@@ -15,13 +16,27 @@ class ParticipantUpdated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    public int $session_id;
+    public int $participant_id;
+    public string $action; // 'joined' | 'left' | 'updated'
+    public array $participant;
+
     /**
      * Create a new event instance.
      */
-    public function __construct(
-        public int $sessionId,
-        public int $participantId,
-    ) {}
+    public function __construct(SessionParticipant $participant, string $action = 'joined')
+    {
+        $this->session_id     = $participant->game_session_id;
+        $this->participant_id = $participant->id;
+        $this->action         = $action;
+
+        $this->participant = [
+            'id'          => $participant->id,
+            'user_id'     => $participant->user_id,
+            'nickname'    => $participant->nickname,
+            'total_score' => $participant->total_score,
+        ];
+    }
 
     /**
      * Get the channels the event should broadcast on.
@@ -31,7 +46,7 @@ class ParticipantUpdated implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel("sessions.{$this->sessionId}.participants"),
+            new PrivateChannel("sessions.{$this->session_id}.participants"),
         ];
     }
 
@@ -43,8 +58,8 @@ class ParticipantUpdated implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'session_id'     => $this->sessionId,
-            'participant_id' => $this->participantId,
+            'session_id'     => $this->session_id,
+            'participant_id' => $this->participant_id,
         ];
     }
 }

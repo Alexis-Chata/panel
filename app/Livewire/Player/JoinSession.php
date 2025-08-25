@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Player;
 
+use App\Events\ParticipantUpdated;
 use App\Models\GameSession;
 use App\Models\SessionParticipant;
 use Illuminate\Support\Facades\Auth;
@@ -25,21 +26,23 @@ class JoinSession extends Component
     {
         $this->error = null;
 
-        $session = GameSession::query()
+        $game_session = GameSession::query()
             ->where('code', trim($this->code))
-            ->whereIn('status', ['lobby','phase1','phase2','phase3'])
+            ->whereIn('status', ['lobby', 'phase1', 'phase2', 'phase3'])
             ->first();
 
-        if (!$session) {
+        if (!$game_session) {
             $this->error = 'Código inválido o partida no disponible.';
             return;
         }
 
-        SessionParticipant::firstOrCreate(
-            ['game_session_id' => $session->id, 'user_id' => Auth::id()],
+        $participant = SessionParticipant::firstOrCreate(
+            ['game_session_id' => $game_session->id, 'user_id' => Auth::id()],
             ['nickname' => Auth::user()->name, 'is_active' => true, 'joined_at' => now()]
         );
 
-        redirect()->route('player.play', ['session' => $session->id]);
+        event(new ParticipantUpdated($participant, 'joined'));
+
+        redirect()->route('player.play', ['session' => $game_session->id]);
     }
 }

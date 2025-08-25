@@ -4,6 +4,7 @@ namespace App\Livewire\Player;
 
 use App\Actions\AnswerQuestion;
 use App\Models\AssignedQuestion;
+use App\Models\GameMatch;
 use App\Models\GameSession;
 use App\Models\QuestionOption;
 use App\Models\SessionParticipant;
@@ -30,6 +31,12 @@ class PlaySession extends Component
 
     // Para countdown en cliente (ISO8601)
     public ?string $deadlineIso = null;
+
+    public ?GameMatch $currentMatch = null;
+    public ?SessionParticipant $opponent = null;
+    public int $phase2Round = 1;
+    public int $phase2Total = 3; // se sobreescribe con $this->session->phase2_count
+
 
     public function mount(GameSession $session)
     {
@@ -58,6 +65,34 @@ class PlaySession extends Component
         $this->freeText = null;
 
         $this->ensureTimerForCurrent();
+
+        $this->phase2Round = 1;
+        $this->phase2Total = (int) ($this->session->phase2_count ?? 3);
+        $this->currentMatch = null;
+        $this->opponent = null;
+
+        if ($this->current && (int)$this->current->phase === 2 && $this->current->game_match_id) {
+            $this->currentMatch = \App\Models\GameMatch::with(['p1.user', 'p2.user'])->find($this->current->game_match_id);
+
+            if ($this->currentMatch) {
+                $pid = $this->participant->id;
+                $oppId = $this->currentMatch->player1_participant_id == $pid
+                    ? $this->currentMatch->player2_participant_id
+                    : $this->currentMatch->player1_participant_id;
+
+                $this->opponent = $oppId ? \App\Models\SessionParticipant::with('user')->find($oppId) : null;
+
+                // Ronda actual = respuestas ya dadas (en este match y fase 2) + 1, pero no pasar el total
+                $answered = \App\Models\AssignedQuestion::where('game_session_id', $this->session->id)
+                    ->where('participant_id', $this->participant->id)
+                    ->where('phase', 2)
+                    ->where('game_match_id', $this->currentMatch->id)
+                    ->whereHas('answer')
+                    ->count();
+
+                $this->phase2Round = min($this->phase2Total, $answered + 1);
+            }
+        }
     }
 
     /**
