@@ -26,7 +26,14 @@ class PhaseOrchestrator
             }
         }
 
-        $s->update(['status' => 'phase1', 'current_phase' => 1]);
+        $duration = (int) data_get($s->settings_json, 'phase1.duration_seconds', 180); // 3min por defecto
+        $endsAt   = now()->addSeconds($duration);
+
+        $s->update(['status' => 'phase1', 'current_phase' => 1, 'phase_ends_at' => $endsAt,]);
+
+        // programa el cierre automático
+        \App\Jobs\EndPhaseIfDue::dispatch($s->id, 'phase1')->delay($endsAt->clone()->addSecond());
+
         event(new SessionPhaseChanged($s));
     }
 
@@ -63,7 +70,13 @@ class PhaseOrchestrator
             ]);
         }
 
-        $s->update(['status' => 'phase2', 'current_phase' => 2]);
+        $duration = (int) data_get($s->settings_json, 'phase2.duration_seconds', 120); // 2min por defecto
+        $endsAt   = now()->addSeconds($duration);
+
+        $s->update(['status' => 'phase2', 'current_phase' => 2, 'phase_ends_at' => $endsAt]);
+
+        \App\Jobs\EndPhaseIfDue::dispatch($s->id, 'phase2')->delay($endsAt->clone()->addSecond());
+
         event(new SessionPhaseChanged($s));
     }
 
@@ -85,7 +98,13 @@ class PhaseOrchestrator
             }
         }
 
-        $s->update(['status' => 'phase3', 'current_phase' => 3]);
+        $duration = (int) data_get($s->settings_json, 'phase3.duration_seconds', 150); // 2:30 por defecto
+        $endsAt   = now()->addSeconds($duration);
+
+        $s->update(['status' => 'phase3', 'current_phase' => 3, 'phase_ends_at' => $endsAt]);
+
+        \App\Jobs\EndPhaseIfDue::dispatch($s->id, 'phase3')->delay($endsAt->clone()->addSecond());
+
         event(new SessionPhaseChanged($s));
     }
 }

@@ -94,11 +94,12 @@
     {{-- Suscripción a eventos realtime para refrescar la lista --}}
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Conjunto global para evitar suscripciones duplicadas
+            // --- estado global anti-duplicados / vida del observer ---
             window.__sessionsIndexSubs = window.__sessionsIndexSubs || new Set();
+            window.__sessionsIndexMO = window.__sessionsIndexMO || null;
 
-            const collectIdsFromDom = () =>
-                Array.from(document.querySelectorAll('tbody tr[data-session-id]'))
+            const collectIdsFromDom = (root = document) =>
+                Array.from(root.querySelectorAll('tbody tr[data-session-id]'))
                 .map(tr => Number(tr.getAttribute('data-session-id')))
                 .filter(Boolean);
 
@@ -108,34 +109,61 @@
 
                 const chScores = window.Echo?.private(`sessions.${id}.scores`);
                 const chPhase = window.Echo?.private(`sessions.${id}.phase`);
+                const chParticipants = window.Echo?.private(`sessions.${id}.participants`);
 
-                chScores
-                    ?.listen('.ScoreUpdated', () => window.Livewire?.dispatch('sessions-index-refresh', {
-                        session_id: id
-                    }))
-                    ?.listen('.ParticipantUpdated', () => window.Livewire?.dispatch('sessions-index-refresh', {
+                chScores?.listen('.ScoreUpdated', () => window.Livewire?.dispatch('sessions-index-refresh', {
+                    session_id: id
+                }));
+                chPhase?.listen('.SessionPhaseChanged', () => window.Livewire?.dispatch(
+                    'sessions-index-refresh', {
                         session_id: id
                     }));
-
-                chPhase
-                    ?.listen('.SessionPhaseChanged', () => window.Livewire?.dispatch('sessions-index-refresh', {
+                chParticipants?.listen('.ParticipantUpdated', () => window.Livewire?.dispatch(
+                    'sessions-index-refresh', {
                         session_id: id
                     }));
             };
 
-            // Suscribe a los IDs presentes al cargar
-            collectIdsFromDom().forEach(subscribeOne);
+            // Re-escaneo con coalescing (evita scans repetidos durante un mismo ciclo)
+            let scanScheduled = false;
+            const rescan = (root = document) => {
+                if (scanScheduled) return;
+                scanScheduled = true;
+                requestAnimationFrame(() => {
+                    collectIdsFromDom(root).forEach(subscribeOne);
+                    scanScheduled = false;
+                });
+            };
 
-            // Si Livewire re-renderiza la tabla (paginación/filtros), subscribir nuevos IDs
-            const tbody = document.querySelector('tbody');
-            if (tbody) {
-                const mo = new MutationObserver(() => {
-                    collectIdsFromDom().forEach(subscribeOne);
-                });
-                mo.observe(tbody, {
-                    childList: true
-                });
+            // 1) Primer escaneo
+            rescan();
+
+            // 2) Re-escaneo tras cada morph de Livewire (fiable con Livewire 3)
+            if (window.Livewire?.hook) {
+                window.Livewire.hook('morph.updated', ({
+                    el
+                }) => rescan(el));
             }
+
+            // 3) MutationObserver como “red de seguridad”
+            //    Observa un contenedor estable; si cambia algo en su subárbol, re-escanea.
+            if (!window.__sessionsIndexMO) {
+                const container = document.querySelector('.table-responsive') || document;
+                const mo = new MutationObserver(() => rescan(container));
+                mo.observe(container, {
+                    childList: true,
+                    subtree: true
+                });
+                window.__sessionsIndexMO = mo;
+            }
+
+            // 4) Limpieza al salir (opcional pero sano)
+            window.addEventListener('beforeunload', () => {
+                window.__sessionsIndexMO?.disconnect();
+                window.__sessionsIndexMO = null;
+            }, {
+                once: true
+            });
         });
     </script>
 
@@ -175,15 +203,14 @@
             try {
                 const ok = await copyText(code);
                 const msg = ok ? {
-                        title: 'Copiado',
-                        text: code,
-                        icon: 'success'
-                    } :
-                    {
-                        title: 'Error',
-                        text: 'No se pudo copiar',
-                        icon: 'error'
-                    };
+                    title: 'Copiado',
+                    text: code,
+                    icon: 'success'
+                } : {
+                    title: 'Error',
+                    text: 'No se pudo copiar',
+                    icon: 'error'
+                };
 
                 if (window.Swal) {
                     Swal.fire({

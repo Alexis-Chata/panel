@@ -23,7 +23,7 @@
 
     <div class="row g-3">
         {{-- Participantes --}}
-        <div class="col-lg-6">
+        <div class="col-lg-6 p-2">
             <div class="card h-100">
                 <div class="card-header">Participantes ({{ $session->participants->count() }})</div>
                 <ul class="list-group list-group-flush">
@@ -38,7 +38,7 @@
         </div>
 
         {{-- Ranking --}}
-        <div class="col-lg-6">
+        <div class="col-lg-6 p-2">
             <div class="card h-100">
                 <div class="card-header">Ranking</div>
                 <div class="table-responsive">
@@ -66,7 +66,7 @@
 
         {{-- Encuentros (Fase 2) --}}
         @if ($this->matches->count())
-            <div class="col-12">
+            <div class="col-12 p-2">
                 <div class="card">
                     <div class="card-header">Encuentros 1v1 (fase 2)</div>
                     <div class="table-responsive">
@@ -111,19 +111,58 @@
 
             window.Echo?.private(`sessions.${sessionId}.participants`)
                 .listen('.ParticipantUpdated', () => window.Livewire?.dispatch('participant-updated'));
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const btn = document.getElementById('copy-code');
+            const codeEl = document.getElementById('sess-code');
 
-            document.getElementById('copy-code')?.addEventListener('click', () => {
-                const code = document.getElementById('sess-code')?.textContent?.trim();
+            async function copyText(text) {
+                // Camino moderno: solo en HTTPS o localhost
+                if (navigator.clipboard && window.isSecureContext) {
+                    return navigator.clipboard.writeText(text);
+                }
+                // Fallback: textarea + execCommand
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    return Promise.resolve();
+                } finally {
+                    document.body.removeChild(ta);
+                }
+            }
+
+            btn?.addEventListener('click', async () => {
+                const code = codeEl?.textContent?.trim();
                 if (!code) return;
-                navigator.clipboard?.writeText(code).then(() => {
-                    if (window.Swal) Swal.fire({
-                        title: 'Copiado',
-                        text: code,
-                        icon: 'success',
-                        timer: 900,
-                        showConfirmButton: false
-                    });
-                });
+
+                try {
+                    await copyText(code);
+                    if (window.Swal) {
+                        Swal.fire({
+                            title: 'Copiado',
+                            text: code,
+                            icon: 'success',
+                            timer: 900,
+                            showConfirmButton: false
+                        });
+                    } else {
+                        // fallback simple si no tienes SweetAlert
+                        alert('Copiado: ' + code);
+                    }
+                } catch (e) {
+                    console.warn('No se pudo copiar:', e);
+                    alert(
+                        'No se pudo copiar automáticamente. Selecciona y copia el código manualmente.'
+                    );
+                }
             }, {
                 passive: true
             });

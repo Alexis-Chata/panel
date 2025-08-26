@@ -16,10 +16,11 @@ class GameSession extends Model
         'phase3_count',
         'settings_json',
         'starts_at',
-        'ends_at'
+        'ends_at',
+        'phase_ends_at',
     ];
 
-    protected $casts = ['settings_json' => 'array', 'starts_at' => 'datetime', 'ends_at' => 'datetime'];
+    protected $casts = ['settings_json' => 'array', 'starts_at' => 'datetime', 'ends_at' => 'datetime', 'phase_ends_at' => 'datetime'];
 
     public function participants()
     {

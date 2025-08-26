@@ -23,6 +23,7 @@ return new class extends Migration
             $table->json('settings_json')->nullable();
             $table->dateTime('starts_at')->nullable();
             $table->dateTime('ends_at')->nullable();
+            $table->dateTime('phase_ends_at')->nullable()->index();
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
             $table->softDeletes();
