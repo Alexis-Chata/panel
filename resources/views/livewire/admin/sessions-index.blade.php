@@ -19,15 +19,13 @@
     <div class="card mb-3" x-show="showForm" x-transition>
         <div class="card-header d-flex justify-content-between align-items-center">
             <span>Configurar nueva partida</span>
-            <button class="btn btn-outline-secondary btn-sm" @click="showForm=false" wire:click="cancelCreate">
-                Cancelar
-            </button>
+            <button class="btn btn-outline-secondary btn-sm" @click="showForm=false"
+                wire:click="cancelCreate">Cancelar</button>
         </div>
 
         <div class="card-body">
             <div class="row">
-
-                {{-- Título --}}
+                {{-- Título / Estado / Fase actual / Counts --}}
                 <div class="col-md-6">
                     <div class="form-group">
                         <label>Título <span class="text-danger">*</span></label>
@@ -39,7 +37,6 @@
                     </div>
                 </div>
 
-                {{-- Estado --}}
                 <div class="col-md-3">
                     <div class="form-group">
                         <label>Estado <span class="text-danger">*</span></label>
@@ -54,7 +51,6 @@
                     </div>
                 </div>
 
-                {{-- Fase actual --}}
                 <div class="col-md-3">
                     <div class="form-group">
                         <label>Fase actual (0–3) <span class="text-danger">*</span></label>
@@ -66,10 +62,9 @@
                     </div>
                 </div>
 
-                {{-- Contadores por fase (opcionales) --}}
                 <div class="col-md-4">
                     <div class="form-group">
-                        <label>Conteo Fase 1</label>
+                        <label>Preguntas Fase 1</label>
                         <input type="number" min="0" class="form-control" wire:model.defer="form.phase1_count">
                         @error('form.phase1_count')
                             <small class="text-danger">{{ $message }}</small>
@@ -79,7 +74,7 @@
 
                 <div class="col-md-4">
                     <div class="form-group">
-                        <label>Conteo Fase 2</label>
+                        <label>Preguntas Fase 2</label>
                         <input type="number" min="0" class="form-control" wire:model.defer="form.phase2_count">
                         @error('form.phase2_count')
                             <small class="text-danger">{{ $message }}</small>
@@ -89,7 +84,7 @@
 
                 <div class="col-md-4">
                     <div class="form-group">
-                        <label>Conteo Fase 3</label>
+                        <label>Preguntas Fase 3</label>
                         <input type="number" min="0" class="form-control" wire:model.defer="form.phase3_count">
                         @error('form.phase3_count')
                             <small class="text-danger">{{ $message }}</small>
@@ -97,8 +92,8 @@
                     </div>
                 </div>
 
-                {{-- Fechas (opcionales) --}}
-                <div class="col-md-4 d-none">
+                {{-- Fechas --}}
+                <div class="col-md-4">
                     <div class="form-group">
                         <label>Inicia en</label>
                         <input type="datetime-local" class="form-control" wire:model.defer="form.starts_at">
@@ -108,7 +103,7 @@
                     </div>
                 </div>
 
-                <div class="col-md-4 d-none">
+                <div class="col-md-4">
                     <div class="form-group">
                         <label>Termina en</label>
                         <input type="datetime-local" class="form-control" wire:model.defer="form.ends_at">
@@ -118,7 +113,7 @@
                     </div>
                 </div>
 
-                <div class="col-md-4 d-none">
+                <div class="col-md-4">
                     <div class="form-group">
                         <label>Fin de fase actual</label>
                         <input type="datetime-local" class="form-control" wire:model.defer="form.phase_ends_at">
@@ -128,39 +123,102 @@
                     </div>
                 </div>
 
-                {{-- Settings JSON (opcional) --}}
+                {{-- Settings JSON --}}
                 <div class="col-12">
                     <div class="form-group">
                         <label>Settings (JSON)</label>
-                        <textarea rows="4" class="form-control" wire:model.defer="form.settings_json"
+                        <textarea rows="3" class="form-control" wire:model.defer="form.settings_json"
                             placeholder='{"phase1":{"time_limit":60},"points":{"correct":2,"wrong":0}}'></textarea>
                         @error('form.settings_json')
                             <small class="text-danger">{{ $message }}</small>
                         @enderror
-                        <small class="form-text text-muted">
-                            Pegue aquí un JSON válido para configuraciones avanzadas (tiempos, puntos, etc.).
-                        </small>
+                        <small class="form-text text-muted">Config avanzada (tiempos, puntos, etc.).</small>
                     </div>
                 </div>
-
             </div>
+
+            <hr>
+
+            {{-- ======= Repeater por fase: Pools + Pesos ======= --}}
+            @foreach ([1, 2, 3] as $phase)
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-2">Fase {{ $phase }} — distribución de pools (la suma de pesos debe ser
+                            100)</h6>
+                        <button type="button" class="btn btn-outline-primary btn-sm"
+                            wire:click="addPoolRow({{ $phase }})">
+                            Agregar pool
+                        </button>
+                    </div>
+
+                    @error("form.pools.$phase")
+                        <div class="text-danger mb-2">{{ $message }}</div>
+                    @enderror
+
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th style="width:60%">Question Pool</th>
+                                    <th style="width:25%">Peso (%)</th>
+                                    <th class="text-right" style="width:15%">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($form->pools[$phase] as $i => $row)
+                                    <tr>
+                                        <td>
+                                            <select class="form-control"
+                                                wire:model.defer="form.pools.{{ $phase }}.{{ $i }}.question_pool_id">
+                                                <option value="">-- seleccionar --</option>
+                                                @foreach ($questionPools as $qp)
+                                                    <option value="{{ $qp->id }}">{{ $qp->name }}</option>
+                                                @endforeach
+                                            </select>
+                                            @error("form.pools.$phase.$i.question_pool_id")
+                                                <small class="text-danger">{{ $message }}</small>
+                                            @enderror
+                                        </td>
+                                        <td>
+                                            <input type="number" min="1" max="100" class="form-control"
+                                                wire:model.defer="form.pools.{{ $phase }}.{{ $i }}.weight">
+                                            @error("form.pools.$phase.$i.weight")
+                                                <small class="text-danger">{{ $message }}</small>
+                                            @enderror
+                                        </td>
+                                        <td class="text-right">
+                                            <button type="button" class="btn btn-outline-danger btn-sm"
+                                                wire:click="removePoolRow({{ $phase }}, {{ $i }})">
+                                                Quitar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="3" class="text-muted">Sin pools aún…</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endforeach
+
         </div>
 
-        <div class="card-footer d-flex justify-content-end gap-2">
-            <button class="btn btn-outline-secondary" @click="showForm=false"
-                wire:click="cancelCreate">Cancelar</button>
-            <button class="btn btn-primary" wire:click="save">
-                Guardar y abrir lobby
-            </button>
+        <div class="card-footer d-flex justify-content-end">
+            <button class="btn btn-primary" wire:click="save">Guardar y abrir lobby</button>
         </div>
     </div>
+
 
     {{-- Filtros --}}
     <div class="card mb-3">
         <div class="card-header">Filtros</div>
         <div class="card-body row g-2">
             <div class="col-md-6">
-                <input class="form-control" placeholder="Buscar por código o título" wire:model.live.debounce.400ms="q">
+                <input class="form-control" placeholder="Buscar por código o título"
+                    wire:model.live.debounce.400ms="q">
             </div>
             <div class="col-md-3">
                 <select class="form-control" wire:model.live="status">

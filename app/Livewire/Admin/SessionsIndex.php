@@ -4,6 +4,7 @@ namespace App\Livewire\Admin;
 
 use App\Livewire\Forms\GameSessionForm;
 use App\Models\GameSession;
+use App\Models\QuestionPool;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
@@ -30,12 +31,27 @@ class SessionsIndex extends Component
     public int $perPage = 10;
     protected $paginationTheme = 'bootstrap'; // AdminLTE usa Bootstrap
 
+    /** @var \Illuminate\Support\Collection */
+    public $questionPools;
+
+    public function mount()
+    {
+        // carga catálogos para los selects
+        $this->questionPools = QuestionPool::select('id', 'name')->orderBy('name')->get();
+    }
+
     // Abrir/cerrar form
     public function openCreateForm(): void
     {
         $this->form->resetToDefaults();
         $this->showForm = true;
+
+        // opcional: agregar una fila por defecto en fase 1
+        if (empty($this->form->pools[1])) {
+            $this->form->addPoolRow(1);
+        }
     }
+
     public function cancelCreate(): void
     {
         $this->showForm = false;
@@ -65,6 +81,16 @@ class SessionsIndex extends Component
     public function realtimeRefresh(): void
     {
         $this->dispatch('$refresh');
+    }
+
+    public function addPoolRow(int $phase): void
+    {
+        $this->form->addPoolRow($phase);
+    }
+
+    public function removePoolRow(int $phase, int $index): void
+    {
+        $this->form->removePoolRow($phase, $index);
     }
 
     public function render()
