@@ -202,6 +202,7 @@ class PlaySession extends Component
     {
         if (!$this->current) return;
 
+        // Relee por si hubo respuesta en carrera
         $this->current->refresh();
 
         if ($this->current->answer) {
@@ -209,24 +210,25 @@ class PlaySession extends Component
             return;
         }
 
-        if ($this->current->expires_at && now()->lessThan($this->current->expires_at)) {
-            // Aún no expiró (carrera); salir.
-            return;
+        // Calcula response_ms como la duración total asignada a la pregunta
+        $start = $this->current->available_at ?? now();
+        $end   = $this->current->expires_at   ?? now();
+
+        // Por si algún dato raro viene invertido
+        if ($start->gt($end)) {
+            $end = $start;
         }
 
-        $start = $this->current->available_at;
-        $end   = $this->current->expires_at;
+        $responseMs = max(0, $start->diffInRealMilliseconds($end));
 
-        // duración total asignada (cap superior)
-        $responseMs = ($start && $end) ? max(0, $start->diffInRealMilliseconds($end)) : 0;
-
-        app(AnswerQuestion::class)->handle(
+        app(\App\Actions\AnswerQuestion::class)->handle(
             $this->current,
-            null,
-            null,
+            null,   // sin opción (timeout)
+            null,   // sin texto
             $responseMs
         );
 
+        // Avanza
         $this->loadCurrent();
         $this->participant->refresh();
     }

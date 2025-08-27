@@ -10,22 +10,38 @@ class PhaseOrchestrator
 {
     public function startPhase1(GameSession $s): void
     {
-        $count = $s->phase1_count;
+        $count     = $s->phase1_count;
         $questions = app(PoolMixer::class)->pickForPhase($s, 'phase1', $count);
 
         foreach ($s->participants as $p) {
             $order = 1;
             foreach ($questions as $q) {
-                AssignedQuestion::create([
+                // Base de creación
+                $payload = [
                     'game_session_id' => $s->id,
-                    'participant_id' => $p->id,
-                    'question_id' => $q->id,
-                    'phase' => 1,
-                    'order' => $order++,
-                ]);
+                    'participant_id'  => $p->id,
+                    'question_id'     => $q->id,
+                    'phase'           => 1,
+                    'order'           => $order,
+                ];
+
+                // 👉 Solo la PRIMERA pregunta arranca con tiempos inmediatos
+                if ($order === 1) {
+                    // Usa la columna questions.time_limit_seconds; si viene vacía cae al default de la sesión o 20s
+                    $limit = (int) ($q->time_limit_seconds ?: data_get($s->settings_json, 'phase1.question_time_limit_seconds_default', 20));
+                    $limit = max(1, $limit);
+
+                    $now = now();
+                    $payload['available_at'] = $now;
+                    $payload['expires_at']   = (clone $now)->addSeconds($limit);
+                }
+
+                \App\Models\AssignedQuestion::create($payload);
+                $order++;
             }
         }
 
+        // Cronómetro global de fase (si lo usas en el lobby)
         $duration = (int) data_get($s->settings_json, 'phase1.duration_seconds', 180); // 3min por defecto
         $endsAt   = now()->addSeconds($duration);
 
@@ -88,16 +104,30 @@ class PhaseOrchestrator
         // Fase 3: mismas preguntas para todos
         foreach ($questions as $idx => $q) {
             foreach ($s->participants as $p) {
-                AssignedQuestion::create([
+                $payload = [
                     'game_session_id' => $s->id,
-                    'participant_id' => $p->id,
-                    'question_id' => $q->id,
-                    'phase' => 3,
-                    'order' => $idx + 1,
-                ]);
+                    'participant_id'  => $p->id,
+                    'question_id'     => $q->id,
+                    'phase'           => 3,
+                    'order'           => $idx + 1,
+                ];
+
+                // Solo la PRIMERA pregunta arranca con tiempos inmediatos
+                if ($idx === 0) {
+                    // Usa la columna time_limit_seconds; si no hay, cae al default de la sesión o 20s
+                    $limit = (int) ($q->time_limit_seconds ?: data_get($s->settings_json, 'phase3.question_time_limit_seconds_default', 20));
+                    $limit = max(1, $limit);
+
+                    $now = now();
+                    $payload['available_at'] = $now;
+                    $payload['expires_at']   = (clone $now)->addSeconds($limit);
+                }
+
+                \App\Models\AssignedQuestion::create($payload);
             }
         }
 
+        // Cronómetro global de la fase (si lo usas en el lobby)
         $duration = (int) data_get($s->settings_json, 'phase3.duration_seconds', 150); // 2:30 por defecto
         $endsAt   = now()->addSeconds($duration);
 
