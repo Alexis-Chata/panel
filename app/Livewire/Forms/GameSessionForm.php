@@ -40,6 +40,13 @@ class GameSessionForm extends Form
         3 => [],
     ];
 
+    public array $settings = [
+        1 => ['per_correct' => null],
+        2 => ['per_correct' => null],
+        3 => ['per_correct' => null, 'bonus_first' => null, 'bonus_second' => null, 'bonus_third' => null],
+    ];
+
+
     protected function rules(): array
     {
         return [
@@ -47,22 +54,17 @@ class GameSessionForm extends Form
             'status'         => ['required', Rule::in(['draft', 'lobby', 'phase1', 'phase2', 'phase3', 'results', 'finished'])],
             'current_phase'  => ['required', 'integer', 'min:0', 'max:3'],
 
-            'phase1_count'   => ['nullable', 'integer', 'min:0', 'max:500'],
-            'phase2_count'   => ['nullable', 'integer', 'min:0', 'max:500'],
-            'phase3_count'   => ['nullable', 'integer', 'min:0', 'max:500'],
+            'phase1_count'   => ['nullable', 'integer', 'min:0'],
+            'phase2_count'   => ['nullable', 'integer', 'min:0'],
+            'phase3_count'   => ['nullable', 'integer', 'min:0'],
 
-            'settings_json'  => ['nullable', 'string'],
-            'starts_at'      => ['nullable', 'date'],
-            'ends_at'        => ['nullable', 'date', 'after_or_equal:starts_at'],
-            'phase_ends_at'  => ['nullable', 'date'],
-
-            // Validaciones básicas de las filas (si existen)
-            'pools'                          => ['array'],
-            'pools.1'                        => ['array'],
-            'pools.2'                        => ['array'],
-            'pools.3'                        => ['array'],
-            'pools.*.*.question_pool_id'     => ['required', 'integer', 'min:1'],
-            'pools.*.*.weight'               => ['required', 'integer', 'min:1', 'max:100'],
+            // settings
+            'settings.1.per_correct'   => ['nullable', 'integer', 'min:0'],
+            'settings.2.per_correct'   => ['nullable', 'integer', 'min:0'],
+            'settings.3.per_correct'   => ['nullable', 'integer', 'min:0'],
+            'settings.3.bonus_first'   => ['nullable', 'integer', 'min:0'],
+            'settings.3.bonus_second'  => ['nullable', 'integer', 'min:0'],
+            'settings.3.bonus_third'   => ['nullable', 'integer', 'min:0'],
         ];
     }
 
@@ -104,6 +106,11 @@ class GameSessionForm extends Form
         $this->phase_ends_at = null;
 
         $this->pools = [1 => [], 2 => [], 3 => []];
+        $this->settings = [
+            1 => ['per_correct' => null],
+            2 => ['per_correct' => null],
+            3 => ['per_correct' => null, 'bonus_first' => null, 'bonus_second' => null, 'bonus_third' => null],
+        ];
     }
 
     public function store(): GameSession
@@ -192,7 +199,7 @@ class GameSessionForm extends Form
             'phase1_count'   => $this->phase1_count,
             'phase2_count'   => $this->phase2_count,
             'phase3_count'   => $this->phase3_count,
-            'settings_json'  => $settings,
+            'settings_json'  => $this->settings,
             'starts_at'      => $startsAt,
             'ends_at'        => $endsAt,
             'phase_ends_at'  => $phaseEndsAt,

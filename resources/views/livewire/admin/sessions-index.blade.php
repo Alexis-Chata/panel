@@ -93,7 +93,7 @@
                 </div>
 
                 {{-- Fechas --}}
-                <div class="col-md-4">
+                <div class="col-md-4 d-none">
                     <div class="form-group">
                         <label>Inicia en</label>
                         <input type="datetime-local" class="form-control" wire:model.defer="form.starts_at">
@@ -103,7 +103,7 @@
                     </div>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-md-4 d-none">
                     <div class="form-group">
                         <label>Termina en</label>
                         <input type="datetime-local" class="form-control" wire:model.defer="form.ends_at">
@@ -113,7 +113,7 @@
                     </div>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-md-4 d-none">
                     <div class="form-group">
                         <label>Fin de fase actual</label>
                         <input type="datetime-local" class="form-control" wire:model.defer="form.phase_ends_at">
@@ -126,12 +126,77 @@
                 {{-- Settings JSON --}}
                 <div class="col-12">
                     <div class="form-group">
-                        <label>Settings (JSON)</label>
-                        <textarea rows="3" class="form-control" wire:model.defer="form.settings_json"
-                            placeholder='{"phase1":{"time_limit":60},"points":{"correct":2,"wrong":0}}'></textarea>
-                        @error('form.settings_json')
-                            <small class="text-danger">{{ $message }}</small>
-                        @enderror
+                        <hr>
+                        <h5 class="mb-3">Configuración de puntuación</h5>
+
+                        {{-- Fase 1 --}}
+                        <div class="card mb-3">
+                            <div class="card-header">Fase 1</div>
+                            <div class="card-body row">
+                                <div class="col-md-4">
+                                    <label>Puntos por respuesta correcta</label>
+                                    <input type="number" min="0" class="form-control"
+                                        wire:model.defer="form.settings.1.per_correct">
+                                    @error('form.settings.1.per_correct')
+                                        <small class="text-danger">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Fase 2 --}}
+                        <div class="card mb-3">
+                            <div class="card-header">Fase 2</div>
+                            <div class="card-body row">
+                                <div class="col-md-4">
+                                    <label>Puntos por respuesta correcta</label>
+                                    <input type="number" min="0" class="form-control"
+                                        wire:model.defer="form.settings.2.per_correct">
+                                    @error('form.settings.2.per_correct')
+                                        <small class="text-danger">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Fase 3 --}}
+                        <div class="card mb-3">
+                            <div class="card-header">Fase 3</div>
+                            <div class="card-body row">
+                                <div class="col-md-3">
+                                    <label>Puntos por respuesta correcta</label>
+                                    <input type="number" min="0" class="form-control"
+                                        wire:model.defer="form.settings.3.per_correct">
+                                    @error('form.settings.3.per_correct')
+                                        <small class="text-danger">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                                <div class="col-md-3">
+                                    <label>Bonus primer lugar</label>
+                                    <input type="number" min="0" class="form-control"
+                                        wire:model.defer="form.settings.3.bonus_first">
+                                    @error('form.settings.3.bonus_first')
+                                        <small class="text-danger">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                                <div class="col-md-3">
+                                    <label>Bonus segundo lugar</label>
+                                    <input type="number" min="0" class="form-control"
+                                        wire:model.defer="form.settings.3.bonus_second">
+                                    @error('form.settings.3.bonus_second')
+                                        <small class="text-danger">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                                <div class="col-md-3">
+                                    <label>Bonus tercer lugar</label>
+                                    <input type="number" min="0" class="form-control"
+                                        wire:model.defer="form.settings.3.bonus_third">
+                                    @error('form.settings.3.bonus_third')
+                                        <small class="text-danger">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                            </div>
+                        </div>
                         <small class="form-text text-muted">Config avanzada (tiempos, puntos, etc.).</small>
                     </div>
                 </div>
