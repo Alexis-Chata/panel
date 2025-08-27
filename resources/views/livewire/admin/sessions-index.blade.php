@@ -1,14 +1,157 @@
-<div class="container py-3"> {{-- ÚNICO ROOT --}}
-    {{-- Crear partida --}}
+<div class="container py-3" x-data="{ showForm: @entangle('showForm') }"> {{-- ÚNICO ROOT --}}
+
+    {{-- Nueva partida (header) --}}
     <div class="card mb-3">
-        <div class="card-header">Crear partida</div>
-        <div class="card-body row g-2 align-items-center">
-            <div class="col-md-8">
-                <input class="form-control" placeholder="Título de la partida" wire:model.defer="title">
+        <div class="card-header">Nueva partida</div>
+        <div class="card-body d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+                Crea una partida y configura fases, fechas y ajustes.
             </div>
-            <div class="col-md-4 text-md-end">
-                <button class="btn btn-success" wire:click="create">Crear</button>
+            <div>
+                <button class="btn btn-success" @click="showForm = true" wire:click="openCreateForm">
+                    Nueva partida
+                </button>
             </div>
+        </div>
+    </div>
+
+    {{-- CARD: Formulario de creación (aparece con Alpine) --}}
+    <div class="card mb-3" x-show="showForm" x-transition>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Configurar nueva partida</span>
+            <button class="btn btn-outline-secondary btn-sm" @click="showForm=false" wire:click="cancelCreate">
+                Cancelar
+            </button>
+        </div>
+
+        <div class="card-body">
+            <div class="row">
+
+                {{-- Título --}}
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label>Título <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" wire:model.defer="form.title"
+                            placeholder="Ej: Partida de Matemática">
+                        @error('form.title')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                </div>
+
+                {{-- Estado --}}
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label>Estado <span class="text-danger">*</span></label>
+                        <select class="form-control" wire:model.defer="form.status">
+                            @foreach (['draft', 'lobby', 'phase1', 'phase2', 'phase3', 'results', 'finished'] as $st)
+                                <option value="{{ $st }}">{{ $st }}</option>
+                            @endforeach
+                        </select>
+                        @error('form.status')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                </div>
+
+                {{-- Fase actual --}}
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label>Fase actual (0–3) <span class="text-danger">*</span></label>
+                        <input type="number" min="0" max="3" class="form-control"
+                            wire:model.defer="form.current_phase">
+                        @error('form.current_phase')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                </div>
+
+                {{-- Contadores por fase (opcionales) --}}
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Conteo Fase 1</label>
+                        <input type="number" min="0" class="form-control" wire:model.defer="form.phase1_count">
+                        @error('form.phase1_count')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Conteo Fase 2</label>
+                        <input type="number" min="0" class="form-control" wire:model.defer="form.phase2_count">
+                        @error('form.phase2_count')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Conteo Fase 3</label>
+                        <input type="number" min="0" class="form-control" wire:model.defer="form.phase3_count">
+                        @error('form.phase3_count')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                </div>
+
+                {{-- Fechas (opcionales) --}}
+                <div class="col-md-4 d-none">
+                    <div class="form-group">
+                        <label>Inicia en</label>
+                        <input type="datetime-local" class="form-control" wire:model.defer="form.starts_at">
+                        @error('form.starts_at')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                </div>
+
+                <div class="col-md-4 d-none">
+                    <div class="form-group">
+                        <label>Termina en</label>
+                        <input type="datetime-local" class="form-control" wire:model.defer="form.ends_at">
+                        @error('form.ends_at')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                </div>
+
+                <div class="col-md-4 d-none">
+                    <div class="form-group">
+                        <label>Fin de fase actual</label>
+                        <input type="datetime-local" class="form-control" wire:model.defer="form.phase_ends_at">
+                        @error('form.phase_ends_at')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                </div>
+
+                {{-- Settings JSON (opcional) --}}
+                <div class="col-12">
+                    <div class="form-group">
+                        <label>Settings (JSON)</label>
+                        <textarea rows="4" class="form-control" wire:model.defer="form.settings_json"
+                            placeholder='{"phase1":{"time_limit":60},"points":{"correct":2,"wrong":0}}'></textarea>
+                        @error('form.settings_json')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                        <small class="form-text text-muted">
+                            Pegue aquí un JSON válido para configuraciones avanzadas (tiempos, puntos, etc.).
+                        </small>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="card-footer d-flex justify-content-end gap-2">
+            <button class="btn btn-outline-secondary" @click="showForm=false"
+                wire:click="cancelCreate">Cancelar</button>
+            <button class="btn btn-primary" wire:click="save">
+                Guardar y abrir lobby
+            </button>
         </div>
     </div>
 
@@ -20,7 +163,7 @@
                 <input class="form-control" placeholder="Buscar por código o título" wire:model.live.debounce.400ms="q">
             </div>
             <div class="col-md-3">
-                <select class="form-select" wire:model.live="status">
+                <select class="form-control" wire:model.live="status">
                     <option value="">Todos los estados</option>
                     <option value="draft">draft</option>
                     <option value="lobby">lobby</option>
@@ -32,7 +175,7 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <select class="form-select" wire:model.live="perPage">
+                <select class="form-control" wire:model.live="perPage">
                     <option value="10">10 por página</option>
                     <option value="20">20 por página</option>
                     <option value="50">50 por página</option>
@@ -41,7 +184,7 @@
         </div>
     </div>
 
-    {{-- Tabla --}}
+    {{-- Tabla (igual a tu versión, solo ajusté form-control vs form-select por BS4.6) --}}
     <div class="card">
         <div class="card-header">Partidas</div>
         <div class="table-responsive">
@@ -62,12 +205,12 @@
                         <tr data-session-id="{{ $s->id }}">
                             <td>{{ $s->id }}</td>
                             <td>
-                                <code class="me-2">{{ $s->code }}</code>
+                                <code class="mr-2">{{ $s->code }}</code>
                                 <button class="btn btn-outline-secondary btn-xs" data-copy="{{ $s->code }}"
                                     title="Copiar código">Copiar</button>
                             </td>
                             <td>{{ $s->title }}</td>
-                            <td><span class="badge bg-info text-dark">{{ $s->status }}</span></td>
+                            <td><span class="badge badge-info">{{ $s->status }}</span></td>
                             <td>{{ $s->current_phase }}</td>
                             <td>{{ $s->participants_count }}</td>
                             <td class="text-end">

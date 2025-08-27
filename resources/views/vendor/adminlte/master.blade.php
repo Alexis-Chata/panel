@@ -40,7 +40,6 @@
             @break
 
             @default
-                @vite(['resources/js/app.js']){{-- se agrego por el echo --}}
                 <link rel="stylesheet" href="{{ asset('vendor/fontawesome-free/css/all.min.css') }}">
                 <link rel="stylesheet" href="{{ asset('vendor/overlayScrollbars/css/OverlayScrollbars.min.css') }}">
                 <link rel="stylesheet" href="{{ asset('vendor/adminlte/dist/css/adminlte.min.css') }}">

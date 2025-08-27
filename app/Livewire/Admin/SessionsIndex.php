@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Forms\GameSessionForm;
 use App\Models\GameSession;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
@@ -17,13 +18,39 @@ class SessionsIndex extends Component
 {
     use WithPagination;
 
-    public string $title = '';
+    // Formulario
+    public GameSessionForm $form;
+
+    // Control UI
+    public bool $showForm = false;
 
     #[Url] public string $q = '';          // búsqueda por código/título (query string)
     #[Url] public string $status = '';     // filtro por estado (query string)
 
     public int $perPage = 10;
     protected $paginationTheme = 'bootstrap'; // AdminLTE usa Bootstrap
+
+    // Abrir/cerrar form
+    public function openCreateForm(): void
+    {
+        $this->form->resetToDefaults();
+        $this->showForm = true;
+    }
+    public function cancelCreate(): void
+    {
+        $this->showForm = false;
+    }
+
+    // Guardar
+    public function save(): void
+    {
+        $session = $this->form->store();
+
+        // Cerrar form y redirigir a lobby
+        $this->showForm = false;
+        $this->dispatch('sessions-index-refresh');
+        redirect()->route('admin.sessions.lobby', $session->id);
+    }
 
     public function updatingQ()
     {
@@ -34,39 +61,18 @@ class SessionsIndex extends Component
         $this->resetPage();
     }
 
-    public function create(): void
-    {
-        // Genera código único (6 chars)
-        do {
-            $code = Str::upper(Str::random(6));
-        } while (GameSession::where('code', $code)->exists());
-
-        $s = GameSession::create([
-            'code'          => $code,
-            'title'         => $this->title ?: 'Nueva partida',
-            'status'        => 'lobby',
-            'current_phase' => 0,
-        ]);
-
-        $this->title = '';
-        redirect()->route('admin.sessions.lobby', $s->id);
-    }
-
     #[On('sessions-index-refresh')]
     public function realtimeRefresh(): void
     {
-        // Basta con forzar un re-render; si computas $sessions en render() se actualizará solo
         $this->dispatch('$refresh');
-        // Si tienes estados de paginación, puedes opcionalmente hacer:
-        // $this->resetPage();
     }
 
     public function render()
     {
         $sessions = GameSession::query()
             ->when($this->q !== '', function ($q) {
-                $q->where(function ($qq) {
-                    $term = trim($this->q);
+                $term = trim($this->q);
+                $q->where(function ($qq) use ($term) {
                     $qq->where('code', 'like', $term . '%')
                         ->orWhere('title', 'like', '%' . $term . '%');
                 });

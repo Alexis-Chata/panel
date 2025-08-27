@@ -16,6 +16,19 @@
     {{ $slot }}
 @endsection
 
-{{-- Reenvía stacks --}}
-@push('js')   @stack('js')   @endpush
-@push('css')  @stack('css')  @endpush
+{{-- Carga de activos Vite (solo aquí para evitar duplicados) --}}
+@section('css')
+    @vite(['resources/css/custom.css'])
+@endsection
+
+@section('js')
+    @vite(['resources/js/app.js']){{-- se agrego por el echo --}}
+@endsection
+
+{{-- Reenvía stacks (si tu app los usa en vistas hijas) --}}
+@push('js')
+    @stack('js')
+@endpush
+@push('css')
+    @stack('css')
+@endpush
