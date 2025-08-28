@@ -319,6 +319,12 @@ return [
             'active' => ['admin/sessions*'],    // resalta en index y lobby
             // 'can' => 'manage-sessions',       // si luego usas Gate/Policy
         ],
+        [
+            'text' => 'Banco de Preguntas',
+            'route' => 'admin.question-builder',   // 👈 nombre de la ruta Livewire
+            'icon'  => 'fas fa-question-circle',   // 👈 icono FontAwesome
+            //'can'   => 'manage-questions',         // (opcional) permiso spatie
+        ],
 
         // Navbar items:
         [

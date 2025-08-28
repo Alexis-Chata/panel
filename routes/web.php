@@ -41,3 +41,10 @@ Route::middleware(['auth'/*, 'can:manage-sessions'*/])->group(function () {
 Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/board/{session}', \App\Livewire\Board\Leaderboard::class)->name('board.show');
 });
+
+Route::middleware(['auth']) // ajusta a tus middlewares
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('/question-builder', \App\Livewire\Admin\QuestionBuilder::class)->name('question-builder');
+    });
