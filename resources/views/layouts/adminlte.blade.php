@@ -1,0 +1,34 @@
+{{-- Layout puente: AdminLTE + Livewire --}}
+@extends('adminlte::page')
+
+{{-- Pasa el $title de Livewire a AdminLTE --}}
+@section('title', $title ?? config('app.name'))
+
+{{-- (Opcional) encabezado de contenido con el mismo título --}}
+@section('content_header')
+    @isset($header)
+        <h1 class="mb-2">{{ $header }}</h1>
+    @endisset
+@endsection
+
+{{-- Slot principal de Livewire --}}
+@section('content')
+    {{ $slot }}
+@endsection
+
+{{-- Carga de activos Vite (solo aquí para evitar duplicados) --}}
+@section('css')
+    @vite(['resources/css/custom.css'])
+@endsection
+
+@section('js')
+    @vite(['resources/js/app.js']){{-- se agrego por el echo --}}
+@endsection
+
+{{-- Reenvía stacks (si tu app los usa en vistas hijas) --}}
+@push('js')
+    @stack('js')
+@endpush
+@push('css')
+    @stack('css')
+@endpush
