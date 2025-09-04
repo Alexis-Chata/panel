@@ -41,6 +41,73 @@
 
             <hr>
 
+            {{-- MÉTRICAS EN VIVO --}}
+            <div class="row mb-3">
+                <div class="col-md-8">
+                    <div class="card shadow-sm">
+                        <div class="card-body py-2">
+                            <div class="d-flex flex-wrap align-items-center">
+                                <div class="mr-3 mb-2">
+                                    <span class="badge badge-primary">Participantes: {{ $pCount }}</span>
+                                </div>
+                                <div class="mr-3 mb-2">
+                                    <span class="badge badge-info">Respondidos: {{ $answered }} /
+                                        {{ $pCount }}</span>
+                                </div>
+                                <div class="mr-3 mb-2">
+                                    <span class="badge badge-success">% Acierto:
+                                        {{ $answered ? number_format(($corrects / $answered) * 100, 1) : 0 }}%
+                                    </span>
+                                </div>
+                            </div>
+
+                            @if (!empty($dist))
+                                <div class="mt-2">
+                                    <div class="d-flex flex-wrap">
+                                        @foreach ($dist as $d)
+                                            <div class="mr-2 mb-2">
+                                                <span
+                                                    class="badge {{ $d['is_correct'] ? 'badge-success' : 'badge-secondary' }}">
+                                                    {{ $d['label'] }}: {{ $d['count'] }}
+                                                    @if ($d['is_correct'])
+                                                        ✓
+                                                    @endif
+                                                </span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card shadow-sm">
+                        <div class="card-body py-2">
+                            <h6 class="mb-2">Mini-ranking (Top 5)</h6>
+                            <ul class="list-group list-group-flush">
+                                @forelse($top as $i => $p)
+                                    <li class="list-group-item py-1 d-flex justify-content-between">
+                                        <div>
+                                            <strong>#{{ $i + 1 }}</strong>
+                                            {{ $p->nickname ?? $p->user?->name }}
+                                        </div>
+                                        <div>
+                                            <span class="badge badge-success">{{ $p->score }}</span>
+                                            <span
+                                                class="badge badge-dark">{{ number_format($p->time_total_ms / 1000, 2) }}s</span>
+                                        </div>
+                                    </li>
+                                @empty
+                                    <li class="list-group-item py-1">Sin datos</li>
+                                @endforelse
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             @if ($current && $current->question)
                 <div class="row">
                     <div class="col-md-8">

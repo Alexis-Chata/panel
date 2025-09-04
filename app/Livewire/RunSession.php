@@ -2,7 +2,9 @@
 
 namespace App\Livewire;
 
+use App\Models\Answer;
 use App\Models\GameSession;
+use App\Models\SessionParticipant;
 use App\Models\SessionQuestion;
 use Livewire\Component;
 
@@ -27,7 +29,7 @@ class RunSession extends Component
 
     public function start(): void
     {
-        $this->gameSession->update(['is_running' => true, 'is_paused' => false]);
+        $this->gameSession->update(['is_running' => true, 'is_paused' => false, 'current_q_started_at' => now(),]);
         $this->dispatch('toast', body: 'Partida iniciada');
     }
 
@@ -71,17 +73,73 @@ class RunSession extends Component
     public function advanceNow(): void
     {
         $this->gameSession->increment('current_q_index');
-        $this->gameSession->update(['is_paused' => false, 'is_running' => true]);
+        $this->gameSession->update(['is_paused' => false, 'is_running' => true, 'current_q_started_at' => now(),]);
         $this->gameSession->refresh();
         $this->loadCurrent();
     }
+
+    private function participantsCount(): int
+    {
+        return SessionParticipant::where('game_session_id', $this->gameSession->id)->count();
+    }
+
+    /** Resumen por opción: [ ['label'=>'A','option_id'=>1,'count'=>5,'is_correct'=>true], ... ] */
+    private function optionDistribution(): array
+    {
+        if (!$this->current) return [];
+
+        $opts = $this->current->question->options()->orderBy('opt_order')->get(['id', 'label', 'is_correct']);
+        $counts = Answer::selectRaw('question_option_id, COUNT(*) as c')
+            ->where('session_question_id', $this->current->id)
+            ->whereNotNull('question_option_id')
+            ->groupBy('question_option_id')
+            ->pluck('c', 'question_option_id');
+
+        return $opts->map(function ($o) use ($counts) {
+            return [
+                'label'      => $o->label,
+                'option_id'  => $o->id,
+                'count'      => (int)($counts[$o->id] ?? 0),
+                'is_correct' => (bool)$o->is_correct,
+            ];
+        })->toArray();
+    }
+
+    /** Total que ya respondió (incluye los que no marcaron opción y quedaron en null) */
+    private function answeredCount(): int
+    {
+        if (!$this->current) return 0;
+        return Answer::where('session_question_id', $this->current->id)->count();
+    }
+
+    /** Correctas registradas */
+    private function correctCount(): int
+    {
+        if (!$this->current) return 0;
+        return Answer::where('session_question_id', $this->current->id)->where('is_correct', true)->count();
+    }
+
+    /** Top 5 en vivo (score desc, tiempo asc) */
+    private function liveTop(): \Illuminate\Support\Collection
+    {
+        return SessionParticipant::where('game_session_id', $this->gameSession->id)
+            ->with('user:id,name')
+            ->orderByDesc('score')->orderBy('time_total_ms')->take(5)->get();
+    }
+
 
     public function render()
     {
         $this->gameSession->refresh();
         $this->loadCurrent();
 
-        return view('livewire.run-session')
+        $pCount   = $this->participantsCount();
+        $answered = $this->answeredCount();
+        $corrects = $this->correctCount();
+        $dist     = $this->optionDistribution();
+        $top      = $this->liveTop();
+
+        return view('livewire.run-session', compact('pCount', 'answered', 'corrects', 'dist', 'top'))
             ->layout('layouts.adminlte', [
                 'title' => 'Ejecutar Partida',
                 'header' => ($this->gameSession->title ?? 'Partida') . ' [' . $this->gameSession->code . ']',

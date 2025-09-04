@@ -5,7 +5,9 @@ namespace App\Livewire;
 use App\Models\DeviceLock;
 use App\Models\GameSession;
 use App\Models\SessionParticipant;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Livewire\Component;
 
 class JoinSession extends Component
@@ -14,12 +16,17 @@ class JoinSession extends Component
     public ?string $device_hash = null;
     public ?string $error = null;
 
-    public function mount()
+    public function mount(Request $request)
     {
-        // Si hay activa, rellenamos código (UX)
-        $active = GameSession::where('is_active', true)->latest()->first();
-        if ($active) {
-            $this->code = $active->code;
+        // Prioridad 1: parámetro de query ?code=...
+        if ($request->filled('code')) {
+            $this->code = strtoupper(trim($request->query('code')));
+        } else {
+            // Prioridad 2: partida activa
+            $active = GameSession::where('is_active', true)->latest()->first();
+            if ($active) {
+                $this->code = $active->code;
+            }
         }
     }
 
@@ -49,6 +56,12 @@ class JoinSession extends Component
         SessionParticipant::firstOrCreate(
             ['game_session_id' => $session->id, 'user_id' => $user->id],
             ['nickname' => $user->name]
+        );
+
+        Cookie::queue(
+            'panel_device_hash_' . $session->id,
+            $this->device_hash,
+            60 * 24 * 14 // 14 días
         );
 
         return $this->redirectRoute('play', ['gameSession' => $session->id], navigate: true);

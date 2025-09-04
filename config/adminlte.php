@@ -110,7 +110,7 @@ return [
     */
 
     'preloader' => [
-        'enabled' => true,
+        'enabled' => false,
         'mode' => 'fullscreen',
         'img' => [
             'path' => 'vendor/adminlte/dist/img/AdminLTELogo.png',
@@ -326,6 +326,14 @@ return [
             'topnav' => true,
             'can' => 'sessions.manage', // Docente/Admin
         ],
+        [
+            'text' => 'Ingresar código',
+            'route' => 'join',
+            'icon'  => 'fas fa-hashtag',
+            'topnav' => true,
+            'can'  => 'sessions.play',
+        ],
+
 
         // --- SIDEBAR IZQUIERDO ---
         ['header' => 'NAVEGACIÓN'],
@@ -359,6 +367,12 @@ return [
             'route'   => 'sessions.index',
             'icon'    => 'fas fa-list',
             'can'     => 'sessions.manage',
+        ],
+        [
+            'text'  => 'Banco de Preguntas',
+            'route' => 'questions.index',
+            'icon'  => 'fas fa-question-circle',
+            'can'   => 'questions.manage', // nuevo permiso
         ],
 
         // Puedes añadir más secciones/links según crezca el proyecto.

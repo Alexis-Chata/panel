@@ -24,6 +24,7 @@ class RolePermissionSeeder extends Seeder
             'sessions.manage', // crear/editar partidas
             'sessions.run',    // avanzar preguntas, pausar, revelar
             'sessions.play',   // unirse y responder
+            'questions.manage', // nuevo permiso
         ];
 
         foreach ($perms as $p) {
@@ -31,7 +32,7 @@ class RolePermissionSeeder extends Seeder
         }
 
         $admin->givePermissionTo($perms);
-        $docente->givePermissionTo(['sessions.manage', 'sessions.run', 'sessions.play']);
+        $docente->givePermissionTo(['sessions.manage', 'sessions.run', 'sessions.play', 'questions.manage']);
         $estudiante->givePermissionTo(['sessions.play']);
     }
 }

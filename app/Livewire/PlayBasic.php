@@ -48,6 +48,17 @@ class PlayBasic extends Component
     /** Responder (desde el front mandamos elapsedMs) */
     public function answer(?int $optionId, int $elapsedMs)
     {
+        // Validación server-side de ventana de tiempo
+        $timerSec = (int)($this->current->timer_override ?? $this->gameSession->timer_default);
+        $startAt  = $this->gameSession->current_q_started_at;
+
+        if ($startAt) {
+            $deadline = \Illuminate\Support\Carbon::parse($startAt)->addSeconds($timerSec);
+            if (now()->greaterThan($deadline)) {
+                // Tiempo agotado en server: no aceptar respuesta
+                return;
+            }
+        }
         // Evitar doble respuesta
         $exists = Answer::where('session_participant_id', $this->me->id)
             ->where('session_question_id', $this->current->id)->exists();

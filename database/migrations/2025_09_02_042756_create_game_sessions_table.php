@@ -22,6 +22,7 @@ return new class extends Migration
             $table->boolean('is_active')->default(false);
             $table->boolean('is_running')->default(false);
             $table->unsignedSmallInteger('current_q_index')->default(0);
+            $table->timestamp('current_q_started_at')->nullable();
             $table->boolean('is_paused')->default(false);
             $table->timestamp('starts_at')->nullable();
             $table->timestamps();
