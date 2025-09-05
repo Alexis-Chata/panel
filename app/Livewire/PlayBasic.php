@@ -48,6 +48,11 @@ class PlayBasic extends Component
     /** Responder (desde el front mandamos elapsedMs) */
     public function answer(?int $optionId, int $elapsedMs)
     {
+        // No aceptar respuestas si la partida no está corriendo o está en pausa
+        if (!$this->gameSession->is_running || $this->gameSession->is_paused) {
+            return;
+        }
+
         // Validación server-side de ventana de tiempo
         $timerSec = (int)($this->current->timer_override ?? $this->gameSession->timer_default);
         $startAt  = $this->gameSession->current_q_started_at;

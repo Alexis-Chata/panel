@@ -28,6 +28,7 @@ Route::middleware([
     'verified',
 ])->group(function () {
     Route::get('/dashboard', function () {
+        return redirect()->route('panel');
         return view('dashboard');
     })->name('dashboard');
 });
