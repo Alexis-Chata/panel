@@ -16,11 +16,12 @@ class DemoGameSeeder extends Seeder
      */
     public function run(): void
     {
+        $total = min(10, \App\Models\Question::count());
         $session = GameSession::create([
             'code' => Str::upper(Str::random(6)),
             'title' => 'Demo Panel Básico',
             'phase_mode' => 'basic',
-            'questions_total' => 10,
+            'questions_total' => $total,
             'timer_default' => 25,
             'student_view_mode' => 'full',
             'is_active' => true,
@@ -30,13 +31,12 @@ class DemoGameSeeder extends Seeder
             'starts_at' => now(),
         ]);
 
-        $questions = Question::inRandomOrder()->take(10)->get();
-        $i = 0;
-        foreach ($questions as $q) {
+        $questions = Question::inRandomOrder()->take($total)->get();
+        foreach ($questions as $i => $q) {
             SessionQuestion::create([
                 'game_session_id' => $session->id,
-                'question_id' => $q->id,
-                'q_order' => $i++,
+                'question_id'     => $q->id,
+                'q_order'         => $i,
             ]);
         }
     }

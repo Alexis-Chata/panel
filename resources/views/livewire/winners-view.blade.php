@@ -9,6 +9,23 @@
             </a>
         </div>
     @endrole
+    @role('Admin|Docente')
+        <div class="mb-3">
+            <a href="{{ route('sessions.export.excel', $gameSession) }}" class="btn btn-outline-success btn-sm">
+                <i class="fas fa-file-excel mr-1"></i> Resultados (Excel)
+            </a>
+            <a href="{{ route('sessions.export.pdf', $gameSession) }}" class="btn btn-outline-danger btn-sm ml-2">
+                <i class="fas fa-file-pdf mr-1"></i> Resultados (PDF)
+            </a>
+            <a href="{{ route('sessions.export.analytics.excel', $gameSession) }}" class="btn btn-success btn-sm ml-2">
+                <i class="fas fa-chart-bar mr-1"></i> Analítico (Excel)
+            </a>
+            <a href="{{ route('sessions.export.analytics.pdf', $gameSession) }}" class="btn btn-danger btn-sm ml-2">
+                <i class="fas fa-chart-pie mr-1"></i> Analítico (PDF)
+            </a>
+        </div>
+    @endrole
+
     <div class="card-body">
         <h5 class="mb-3">Top 10</h5>
         <div class="table-responsive">

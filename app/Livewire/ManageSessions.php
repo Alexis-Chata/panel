@@ -43,6 +43,13 @@ class ManageSessions extends Component
             'is_paused' => false,
         ]);
 
+        $totalAvailable = \App\Models\Question::count();
+        if ($totalAvailable === 0) {
+            $this->addError('title', 'No hay preguntas en el banco. Importa o crea algunas primero.');
+            return;
+        }
+        $this->questions_total = min($this->questions_total, $totalAvailable);
+
         // Autoseleccionar N preguntas aleatorias si hay banco suficiente
         $qs = Question::inRandomOrder()->take($this->questions_total)->get();
         $i = 0;

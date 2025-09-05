@@ -1,5 +1,6 @@
 <?php
 
+use App\Exports\GameSessionAnalyticsExport;
 use App\Exports\GameSessionResultsExport;
 use App\Livewire\Dashboard;
 use App\Livewire\JoinSession;
@@ -8,8 +9,10 @@ use App\Livewire\ManageSessions;
 use App\Livewire\PlayBasic;
 use App\Livewire\RunSession;
 use App\Livewire\WinnersView;
+use App\Models\Answer;
 use App\Models\GameSession;
 use App\Models\SessionParticipant;
+use App\Models\SessionQuestion;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Route;
@@ -49,6 +52,68 @@ Route::middleware(['auth'])->group(function () {
 
         return $pdf->download('resultados_' . $gameSession->code . '.pdf');
     })->name('sessions.export.pdf');
+    // Excel analítico
+    Route::get('/sessions/{gameSession}/export/analytics-excel', function (GameSession $gameSession) {
+        abort_unless(auth()->user()->can('sessions.export'), 403);
+        return Excel::download(
+            new GameSessionAnalyticsExport($gameSession->id),
+            'analitico_' . $gameSession->code . '.xlsx'
+        );
+    })->name('sessions.export.analytics.excel');
+
+    // PDF analítico
+    Route::get('/sessions/{gameSession}/export/analytics-pdf', function (GameSession $gameSession) {
+        abort_unless(auth()->user()->can('sessions.export'), 403);
+
+        $sqs = SessionQuestion::where('game_session_id', $gameSession->id)
+            ->with('question.options')
+            ->orderBy('q_order')->get();
+
+        $rows = [];
+        foreach ($sqs as $i => $sq) {
+            $opts = $sq->question->options->sortBy('opt_order')->values();
+
+            $labels = ['A' => 0, 'B' => 0, 'C' => 0, 'D' => 0];
+            $isCorrect = [];
+            foreach ($opts as $o) {
+                $isCorrect[$o->label] = (bool) $o->is_correct;
+            }
+
+            $dist = Answer::selectRaw('question_option_id, COUNT(*) as c')
+                ->where('session_question_id', $sq->id)
+                ->whereNotNull('question_option_id')
+                ->groupBy('question_option_id')
+                ->pluck('c', 'question_option_id');
+
+            foreach ($opts as $o) {
+                $labels[$o->label] = (int) ($dist[$o->id] ?? 0);
+            }
+
+            $answered = Answer::where('session_question_id', $sq->id)->count();
+            $corrects = Answer::where('session_question_id', $sq->id)->where('is_correct', true)->count();
+            $acc = $answered ? ($corrects * 100 / $answered) : 0.0;
+
+            $rows[] = [
+                'n'        => $i + 1,
+                'q'        => mb_strimwidth($sq->question->statement, 0, 140, '…', 'UTF-8'),
+                'correct'  => array_search(true, $isCorrect, true) ?: '',
+                'answered' => $answered,
+                'corrects' => $corrects,
+                'acc'      => $acc,
+                'A'        => $labels['A'],
+                'B'        => $labels['B'],
+                'C'        => $labels['C'],
+                'D'        => $labels['D'],
+            ];
+        }
+
+        $pdf = Pdf::loadView('pdf/session-analytics', [
+            'session' => $gameSession,
+            'rows'    => $rows,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download('analitico_' . $gameSession->code . '.pdf');
+    })->name('sessions.export.analytics.pdf');
 
     Route::get('/sessions/{gameSession}/export/excel', function (GameSession $gameSession) {
         //$this->authorize('export', $gameSession); // opcional si creas Policy
