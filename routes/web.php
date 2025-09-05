@@ -1,5 +1,6 @@
 <?php
 
+use App\Exports\GameSessionResultsExport;
 use App\Livewire\Dashboard;
 use App\Livewire\JoinSession;
 use App\Livewire\ManageQuestions;
@@ -7,7 +8,12 @@ use App\Livewire\ManageSessions;
 use App\Livewire\PlayBasic;
 use App\Livewire\RunSession;
 use App\Livewire\WinnersView;
+use App\Models\GameSession;
+use App\Models\SessionParticipant;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Route;
+use Maatwebsite\Excel\Facades\Excel;
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -27,6 +33,30 @@ Route::get('/', fn() => redirect()->route('panel'));
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/panel', Dashboard::class)->name('panel');
+    Route::get('/sessions/{gameSession}/export/pdf', function (\App\Models\GameSession $gameSession) {
+        abort_unless(auth()->user()->can('sessions.export'), 403);
+
+        $ranking = SessionParticipant::where('game_session_id', $gameSession->id)
+            ->with('user:id,name,email')
+            ->orderByDesc('score')
+            ->orderBy('time_total_ms')
+            ->get();
+
+        $pdf = Pdf::loadView('pdf/session-results', [
+            'session'  => $gameSession,
+            'ranking'  => $ranking,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download('resultados_' . $gameSession->code . '.pdf');
+    })->name('sessions.export.pdf');
+
+    Route::get('/sessions/{gameSession}/export/excel', function (GameSession $gameSession) {
+        //$this->authorize('export', $gameSession); // opcional si creas Policy
+        abort_unless(auth()->user()->can('sessions.export'), 403);
+
+        $filename = 'resultados_' . $gameSession->code . '.xlsx';
+        return Excel::download(new GameSessionResultsExport($gameSession->id), $filename);
+    })->middleware(['auth'])->name('sessions.export.excel');
 
     // Docente/Admin
     Route::middleware(['role:Admin|Docente'])->group(function () {
@@ -36,6 +66,18 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/questions', ManageQuestions::class)
         ->name('questions.index')
         ->middleware('role:Admin|Docente');
+
+    Route::get('/questions/template/csv', function () {
+        $csv = "statement,feedback,A,B,C,D,correct\n";
+        $csv .= "\"Capital de Perú\",\"Lima es la capital.\",\"Lima\",\"Cusco\",\"Arequipa\",\"Trujillo\",\"A\"\n";
+        $csv .= "\"7x8\",\"7×8 = 56\",\"54\",\"56\",\"58\",\"60\",\"B\"\n";
+
+        return Response::streamDownload(function () use ($csv) {
+            echo $csv;
+        }, 'plantilla_preguntas.csv', [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    })->middleware(['role:Admin|Docente'])->name('questions.template.csv');
 
     // Estudiante
     Route::get('/join', JoinSession::class)->name('join');

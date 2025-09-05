@@ -6,12 +6,17 @@ use App\Models\Question;
 use App\Models\QuestionOption;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Maatwebsite\Excel\Facades\Excel;
 
 #[Layout('layouts.adminlte', ['title' => 'Banco de Preguntas', 'header' => 'Banco de Preguntas'])]
 class ManageQuestions extends Component
 {
     use WithPagination;
+    use WithFileUploads;
+
+    public $file; // input de archivo
 
     public string $search = '';
     public int $perPage = 10;
@@ -39,6 +44,9 @@ class ManageQuestions extends Component
             'opts.*.content' => ['required', 'string'],
             'opts.*.is_correct' => ['boolean'],
             'opts.*.opt_order' => ['required', 'integer', 'min:1', 'max:4'],
+
+            // import
+            'file' => ['nullable', 'file', 'mimes:xlsx,csv,txt', 'max:10240'],
         ];
     }
 
@@ -141,6 +149,30 @@ class ManageQuestions extends Component
             ['label' => 'C', 'content' => '', 'is_correct' => false, 'opt_order' => 3],
             ['label' => 'D', 'content' => '', 'is_correct' => false, 'opt_order' => 4],
         ];
+    }
+
+    public function import()
+    {
+        $this->validateOnly('file');
+
+        if (!$this->file) {
+            $this->addError('file', 'Selecciona un archivo.');
+            return;
+        }
+
+        try {
+            Excel::import(new QuestionsImport, $this->file->getRealPath());
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->addError('file', $e->getMessage());
+            return;
+        } catch (\Throwable $e) {
+            $this->addError('file', 'Archivo inválido o con columnas incorrectas.');
+            report($e);
+            return;
+        }
+
+        $this->reset('file');
+        session()->flash('ok', 'Preguntas importadas correctamente.');
     }
 
     public function render()

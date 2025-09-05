@@ -27,6 +27,32 @@
         </div>
     </div>
 
+    <div class="card mb-3">
+        <div class="card-header">Importar preguntas (CSV/Excel)</div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap align-items-center">
+                <a href="{{ route('questions.template.csv') }}" class="btn btn-outline-secondary btn-sm mr-2">
+                    <i class="fas fa-download mr-1"></i> Descargar plantilla CSV
+                </a>
+
+                <div class="custom-file mr-2" style="max-width:340px;">
+                    <input type="file" class="custom-file-input" id="fileImport" wire:model="file"
+                        accept=".csv,.xlsx">
+                    <label class="custom-file-label" for="fileImport">
+                        {{ $file ? $file->getClientOriginalName() : 'Seleccionar archivo…' }}
+                    </label>
+                </div>
+
+                <button class="btn btn-primary btn-sm" wire:click="import" wire:loading.attr="disabled">
+                    <i class="fas fa-file-import mr-1"></i> Importar
+                </button>
+            </div>
+            @error('file')
+                <div class="text-danger mt-2">{{ $message }}</div>
+            @enderror
+        </div>
+    </div>
+
     <div class="card">
         <div class="table-responsive">
             <table class="table table-striped table-hover mb-0">
