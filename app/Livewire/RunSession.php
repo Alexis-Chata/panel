@@ -129,11 +129,32 @@ class RunSession extends Component
             ->orderByDesc('score')->orderBy('time_total_ms')->take(5)->get();
     }
 
+    private function revealIfAllAnswered(): void
+    {
+        // Necesitamos estar corriendo, no en pausa, y tener pregunta actual
+        if (!$this->gameSession->is_running || $this->gameSession->is_paused || !$this->current) {
+            return;
+        }
+
+        // Número de participantes en la partida
+        $pCount = SessionParticipant::where('game_session_id', $this->gameSession->id)->count();
+        if ($pCount === 0) return;
+
+        // Respuestas registradas para la pregunta actual (incluye null/timeout si el cliente las envía)
+        $aCount = Answer::where('session_question_id', $this->current->id)->count();
+
+        // Si todos respondieron, revelamos (pausamos) exactamente una vez
+        if ($aCount >= $pCount) {
+            $this->gameSession->update(['is_paused' => true]); // esto hace que en alumno/Docente se muestre "Correcta" + feedback
+            $this->dispatch('toast', body: 'Todos respondieron — respuesta revelada');
+        }
+    }
 
     public function render()
     {
         $this->gameSession->refresh();
         $this->loadCurrent();
+        $this->revealIfAllAnswered();
 
         $pCount   = $this->participantsCount();
         $answered = $this->answeredCount();

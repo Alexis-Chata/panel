@@ -1,4 +1,4 @@
-<div x-data
+<div wire:poll.1000ms x-data
     x-on:countdown.window="
         let el = document.getElementById('countdown-box');
         el.classList.remove('d-none');
@@ -9,7 +9,7 @@
             el.classList.add('d-none');
             Livewire.dispatch('advanceNow');
         }, 2100);
-     ">
+    ">
     <div id="countdown-box" class="display-3 text-center d-none"
         style="position:fixed;top:30%;left:0;right:0;z-index:9999;">
     </div>

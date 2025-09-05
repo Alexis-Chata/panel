@@ -20,6 +20,7 @@ return new class extends Migration
             $table->unsignedBigInteger('time_total_ms')->default(0);
             $table->unique(['game_session_id', 'user_id']);
             $table->timestamps();
+            $table->index('game_session_id');
         });
     }
 

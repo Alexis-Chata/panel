@@ -1,16 +1,6 @@
 <div class="card">
     @role('Admin|Docente')
-        <div class="mb-3">
-            <a href="{{ route('sessions.export.excel', $gameSession) }}" class="btn btn-outline-success btn-sm">
-                <i class="fas fa-file-excel mr-1"></i> Exportar Excel
-            </a>
-            <a href="{{ route('sessions.export.pdf', $gameSession) }}" class="btn btn-outline-danger btn-sm ml-2">
-                <i class="fas fa-file-pdf mr-1"></i> Exportar PDF
-            </a>
-        </div>
-    @endrole
-    @role('Admin|Docente')
-        <div class="mb-3">
+        <div class="m-3">
             <a href="{{ route('sessions.export.excel', $gameSession) }}" class="btn btn-outline-success btn-sm">
                 <i class="fas fa-file-excel mr-1"></i> Resultados (Excel)
             </a>

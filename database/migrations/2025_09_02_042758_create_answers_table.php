@@ -21,6 +21,7 @@ return new class extends Migration
             $table->timestamp('answered_at')->nullable();
             $table->unique(['session_participant_id', 'session_question_id']);
             $table->timestamps();
+            $table->index('session_question_id');
         });
     }
 
