@@ -3,18 +3,24 @@
 @endphp
 
 <div wire:poll.1000ms>
-    {{-- 1) Aún no hay pregunta cargada --}}
+    {{-- 1) No hay pregunta actual --}}
     @if (!$current)
         <div class="card">
             <div class="card-body text-center">
                 <span class="badge badge-secondary mb-2">
-                    Q #{{ $gameSession->current_q_index + 1 }} / {{ $gameSession->questions_total }}
+                    Q #{{ min($gameSession->current_q_index + 1, $gameSession->questions_total) }} /
+                    {{ $gameSession->questions_total }}
                 </span>
-                <h5 class="mb-2">Esperando pregunta…</h5>
-                @if (!$gameSession->is_running && !$gameSession->is_active)
-                    <a class="btn btn-outline-secondary btn-sm" href="{{ route('winners', $gameSession) }}">
+
+                @if (!$gameSession->is_active)
+                    {{-- Partida finalizada --}}
+                    <h5 class="mb-2">¡Partida finalizada!</h5>
+                    <a class="btn btn-primary btn-sm" href="{{ route('winners', $gameSession) }}">
                         Ver ganadores
                     </a>
+                @else
+                    {{-- Aún no inicia o el docente está por lanzar la primera --}}
+                    <h5 class="mb-2">Esperando pregunta…</h5>
                 @endif
             </div>
         </div>
@@ -32,23 +38,46 @@
         </div>
 
         {{-- 3) La partida está corriendo: mostramos la pregunta --}}
+        {{-- 3) La partida está corriendo: pregunta + cronómetro sincronizado con servidor --}}
     @else
-        <div x-data="{
-            seconds: {{ (int) $timer }},
-            running: {{ !$gameSession->is_paused && $gameSession->is_running ? 'true' : 'false' }},
-            answered: {{ $answered_option_id ? 'true' : 'false' }},
-            startTs: null,
-            elapsed() { return this.startTs ? (Date.now() - this.startTs) : 0; },
-            tick() {
-                if (!this.running || this.answered) return;
-                if (this.seconds > 0) { this.seconds--; }
-                if (this.seconds <= 0) {
-                    this.running = false;
-                    if (!this.answered) $wire.answer(null, this.elapsed());
+        <div {{-- Remonta Alpine al cambiar de pregunta o de marca de inicio --}}
+            wire:key="q-{{ $gameSession->id }}-{{ $gameSession->current_q_index }}-{{ optional($gameSession->current_q_started_at)->timestamp ?? 'none' }}"
+            {{-- Datos que Livewire actualiza cada render --}} data-left="{{ $secondsLeft }}"
+            data-running="{{ $gameSession->is_running ? 'true' : 'false' }}"
+            data-paused="{{ $gameSession->is_paused ? 'true' : 'false' }}" x-data="{
+                seconds: parseInt($el.getAttribute('data-left') || '0', 10),
+                running: {{ !$gameSession->is_paused && $gameSession->is_running ? 'true' : 'false' }},
+                answered: {{ $answered_option_id ? 'true' : 'false' }},
+
+                tick() {
+                    if (!this.running || this.answered) return;
+                    if (this.seconds > 0) {
+                        this.seconds--;
+                        if (this.seconds <= 0 && !this.answered) {
+                            // tiempo agotado; el servidor validará nuevamente
+                            $wire.answer(null, 0);
+                        }
+                    }
+                },
+
+                syncFromServer() {
+                    const left = parseInt($el.getAttribute('data-left') || '0', 10);
+                    const srvRun = $el.getAttribute('data-running') === 'true';
+                    const srvPause = $el.getAttribute('data-paused') === 'true';
+                    this.running = srvRun && !srvPause;
+
+                    // Solo AJUSTA hacia abajo (nunca sube)
+                    if (!Number.isNaN(left) && left < this.seconds) {
+                        this.seconds = left;
+                    }
+                    // Si por alguna razón seconds no está inicializado, ponlo
+                    if (Number.isNaN(this.seconds)) this.seconds = left;
                 }
-            }
-        }" x-init="if (running && !answered) { startTs = Date.now(); }
-        setInterval(() => tick(), 1000);" class="card">
+            }"
+            x-init="// Arranca el loop de 1s
+            setInterval(() => { tick() }, 1000);
+            // Primera sincronización
+            syncFromServer();" x-effect="syncFromServer()" class="card">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="badge badge-secondary">
@@ -72,11 +101,15 @@
                     @foreach ($current->question->options->sortBy('opt_order') as $opt)
                         <button
                             class="list-group-item list-group-item-action d-flex justify-content-between align-items-center
-                        {{ $answered_option_id === $opt->id ? 'active' : '' }}"
-                            :disabled="answered || {{ $gameSession->is_paused || !$gameSession->is_running ? 'true' : 'false' }}"
-                            @click="if(!answered && {{ !$gameSession->is_paused && $gameSession->is_running ? 'true' : 'false' }}){answered = true;$wire.answer({{ $opt->id }}, elapsed());}">
+                 {{ $answered_option_id === $opt->id ? 'active' : '' }}"
+                            :disabled="answered || !running"
+                            @click="
+            if (!answered && running) {
+              answered = true;
+              $wire.answer({{ $opt->id }}, 0); // el server registra el tiempo real
+            }
+          ">
                             <div><strong>{{ $opt->label }}.</strong> {{ $opt->content }}</div>
-
                             @if ($gameSession->is_paused && $opt->is_correct)
                                 <span class="badge badge-success">Correcta</span>
                             @endif

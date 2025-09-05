@@ -45,65 +45,83 @@ class PlayBasic extends Component
         }
     }
 
-    /** Responder (desde el front mandamos elapsedMs) */
-    public function answer(?int $optionId, int $elapsedMs)
+    public function answer(?int $optionId, $ignoreElapsedFromClient = null)
     {
-        // No aceptar respuestas si la partida no está corriendo o está en pausa
+        // No aceptar si la partida no está corriendo o está en pausa
         if (!$this->gameSession->is_running || $this->gameSession->is_paused) {
             return;
         }
 
-        // Validación server-side de ventana de tiempo
+        // Evitar doble respuesta
+        $exists = \App\Models\Answer::where('session_participant_id', $this->me->id)
+            ->where('session_question_id', $this->current->id)->exists();
+        if ($exists) return;
+
+        // ===== TIEMPO DESDE SERVIDOR (robusto) =====
         $timerSec = (int)($this->current->timer_override ?? $this->gameSession->timer_default);
         $startAt  = $this->gameSession->current_q_started_at;
 
-        if ($startAt) {
-            $deadline = \Illuminate\Support\Carbon::parse($startAt)->addSeconds($timerSec);
-            if (now()->greaterThan($deadline)) {
-                // Tiempo agotado en server: no aceptar respuesta
-                return;
-            }
-        }
-        // Evitar doble respuesta
-        $exists = Answer::where('session_participant_id', $this->me->id)
-            ->where('session_question_id', $this->current->id)->exists();
+        // segundos transcurridos con signo; si es negativo, usa 0
+        $elapsedSec = $startAt ? max(0, $startAt->diffInRealSeconds(now(), false)) : 0;
 
-        if ($exists) return;
+        // a milisegundos, clamp [0, timerSec*1000] y casteo a entero
+        $serverElapsedMs = (int) min($timerSec * 1000, $elapsedSec * 1000);
+
+        // ===========================================
 
         $option = $optionId ? $this->current->question->options->firstWhere('id', $optionId) : null;
         $isCorrect = $option ? (bool)$option->is_correct : false;
 
-        Answer::create([
+        \App\Models\Answer::create([
             'session_participant_id' => $this->me->id,
-            'session_question_id' => $this->current->id,
-            'question_option_id' => $optionId,
-            'is_correct' => $isCorrect,
-            'time_ms' => max(0, (int)$elapsedMs),
-            'answered_at' => now(),
+            'session_question_id'    => $this->current->id,
+            'question_option_id'     => $optionId,
+            'is_correct'             => $isCorrect,
+            'time_ms'                => $serverElapsedMs,   // <-- SIEMPRE entero, no negativo
+            'answered_at'            => now(),
         ]);
 
-        // Recomputa score/tiempo del participante (simple y suficiente)
-        $sum = Answer::where('session_participant_id', $this->me->id);
+        // Recomputa score/tiempo del participante
+        $sum = \App\Models\Answer::where('session_participant_id', $this->me->id);
         $this->me->update([
-            'score' => (clone $sum)->where('is_correct', true)->count(),
+            'score'         => (clone $sum)->where('is_correct', true)->count(),
             'time_total_ms' => (clone $sum)->sum('time_ms'),
         ]);
 
         $this->answered_option_id = $optionId;
     }
 
+
     public function render()
     {
         $this->gameSession->refresh();
 
-        // Si el docente avanzó, resync
+        // Si el docente cambió de pregunta, resincroniza
         if ($this->last_seen_index !== $this->gameSession->current_q_index) {
             $this->syncCurrent();
         }
 
-        return view('livewire.play-basic')
+        // === SEGUNDOS RESTANTES CALCULADOS EN SERVER ===
+        $secondsLeft = 0;
+        if ($this->current && $this->gameSession->is_running && !$this->gameSession->is_paused) {
+            $timerSec = (int) ($this->current->timer_override ?? $this->gameSession->timer_default);
+            $startAt  = $this->gameSession->current_q_started_at;
+
+            if ($startAt) {
+                // tiempo transcurrido = (now - start) con signo; si es negativo, usamos 0
+                $elapsed = max(0, $startAt->diffInRealSeconds(now(), false));
+                $secondsLeft = max(0, $timerSec - $elapsed);
+            } else {
+                $secondsLeft = $timerSec;
+            }
+        }
+
+
+        return view('livewire.play-basic', [
+            'secondsLeft' => $secondsLeft,
+        ])
             ->layout('layouts.adminlte', [
-                'title' => 'Jugar',
+                'title'  => 'Jugar',
                 'header' => ($this->gameSession->title ?? 'Partida') . ' [' . $this->gameSession->code . ']',
             ]);
     }

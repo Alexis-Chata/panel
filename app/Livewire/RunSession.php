@@ -53,18 +53,20 @@ class RunSession extends Component
         $next = $this->gameSession->current_q_index + 1;
 
         if ($next >= $this->gameSession->questions_total) {
-            // Fin de la partida
+            // Fin de la partida: desactivar, sacar del rango y pausar
             $this->gameSession->update([
+                'is_active' => false,                         // <- marca fin
                 'is_running' => false,
-                'is_paused' => false,
+                'is_paused'  => false,
+                'current_q_index' => $this->gameSession->questions_total, // fuera de rango
             ]);
+
+            // Ir a ganadores
             $this->redirectRoute('winners', ['gameSession' => $this->gameSession->id], navigate: true);
             return;
         }
 
-        $this->dispatch('countdown'); // JS: muestra 3-2-1
-
-        // Pequeño delay: al final del conteo, cambiar índice
+        $this->dispatch('countdown');
         $this->dispatch('advance-after-count');
     }
 
