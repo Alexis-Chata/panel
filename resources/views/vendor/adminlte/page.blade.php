@@ -8,6 +8,11 @@
     @yield('css')
 @stop
 
+@section('adminlte_css_pre')
+    @stack('css_pre')
+    @yield('css_pre')
+@stop
+
 @section('classes_body', $layoutHelper->makeBodyClasses())
 
 @section('body_data', $layoutHelper->makeBodyData())

@@ -21,8 +21,12 @@
     @vite(['resources/css/custom.css'])
 @endsection
 
-@section('js')
+@section('css_pre')
     @vite(['resources/js/app.js']){{-- se agrego por el echo --}}
+@endsection
+
+@section('js')
+    {{-- Código JS específico de esta vista Livewire --}}
 @endsection
 
 {{-- Reenvía stacks (si tu app los usa en vistas hijas) --}}

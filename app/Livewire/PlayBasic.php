@@ -2,11 +2,14 @@
 
 namespace App\Livewire;
 
+use App\Events\AnswerSubmitted;
+use App\Events\GameSessionStateChanged;
 use App\Models\Answer;
 use App\Models\GameSession;
 use App\Models\SessionParticipant;
 use App\Models\SessionQuestion;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class PlayBasic extends Component
@@ -89,8 +92,39 @@ class PlayBasic extends Component
         ]);
 
         $this->answered_option_id = $optionId;
+
+        $pCount = SessionParticipant::where('game_session_id', $this->gameSession->id)->count();
+        $aCount = Answer::where('session_question_id', $this->current->id)->count();
+
+        // Broadcast conteo
+        AnswerSubmitted::dispatch($this->gameSession->id, $aCount, $pCount);
+
+        // (Opcional) Revelar automáticamente
+        if ($aCount >= $pCount) {
+            $this->gameSession->update(['is_paused' => true]);
+            GameSessionStateChanged::dispatch($this->gameSession->id, [
+                'is_running' => true,
+                'is_paused' => true,
+                'current_q_index' => $this->gameSession->current_q_index,
+                'current_q_started_at' => optional($this->gameSession->current_q_started_at)?->toIso8601String(),
+            ]);
+        }
     }
 
+    #[On('syncState')]
+    public function syncState($payload = null)
+    {
+        // Vuelve a cargar estado/cronómetro desde BD
+        $this->gameSession->refresh();
+        $this->syncCurrent();
+    }
+
+    #[On('refreshStats')]
+    public function refreshStats($payload = null)
+    {
+        // Si quieres refrescar métricas locales o bloquear UI cuando $payload['answeredCount']==$payload['participantsCount']
+        $this->gameSession->refresh();
+    }
 
     public function render()
     {
@@ -115,7 +149,6 @@ class PlayBasic extends Component
                 $secondsLeft = $timerSec;
             }
         }
-
 
         return view('livewire.play-basic', [
             'secondsLeft' => $secondsLeft,

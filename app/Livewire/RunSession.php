@@ -2,10 +2,12 @@
 
 namespace App\Livewire;
 
+use App\Events\GameSessionStateChanged;
 use App\Models\Answer;
 use App\Models\GameSession;
 use App\Models\SessionParticipant;
 use App\Models\SessionQuestion;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class RunSession extends Component
@@ -13,12 +15,14 @@ class RunSession extends Component
     public GameSession $gameSession;
     public ?SessionQuestion $current = null;
 
+    // Inicializar el componente
     public function mount(GameSession $gameSession)
     {
         $this->gameSession = $gameSession->fresh();
         $this->loadCurrent();
     }
 
+    // Cargar/refrescar la pregunta actual y métricas asociadas
     public function loadCurrent(): void
     {
         $index = $this->gameSession->current_q_index;
@@ -30,13 +34,16 @@ class RunSession extends Component
     public function start(): void
     {
         $this->gameSession->update(['is_running' => true, 'is_paused' => false, 'current_q_started_at' => now(),]);
+        $this->broadcastState();
         $this->dispatch('toast', body: 'Partida iniciada');
     }
 
+    // Pausar/Reanudar
     public function togglePause(): void
     {
         $this->gameSession->update(['is_paused' => !$this->gameSession->is_paused]);
         $this->gameSession->refresh();
+        $this->broadcastState();
     }
 
     /** Revela la respuesta correcta (pausa para explicación) */
@@ -45,6 +52,7 @@ class RunSession extends Component
         $this->gameSession->update(['is_paused' => true]);
         // No guardamos un flag aparte: los alumnos determinan correcta leyendo la opción correcta
         $this->dispatch('toast', body: 'Respuesta revelada y pausa activa');
+        $this->broadcastState();
     }
 
     /** Avanza a la siguiente pregunta con conteo 3-2-1 */
@@ -60,6 +68,7 @@ class RunSession extends Component
                 'is_paused'  => false,
                 'current_q_index' => $this->gameSession->questions_total, // fuera de rango
             ]);
+            $this->broadcastState();
 
             // Ir a ganadores
             $this->redirectRoute('winners', ['gameSession' => $this->gameSession->id], navigate: true);
@@ -71,15 +80,17 @@ class RunSession extends Component
     }
 
     /** Listener desde JS tras el conteo */
-    #[\Livewire\Attributes\On('advanceNow')]
+    #[On('advanceNow')]
     public function advanceNow(): void
     {
         $this->gameSession->increment('current_q_index');
         $this->gameSession->update(['is_paused' => false, 'is_running' => true, 'current_q_started_at' => now(),]);
         $this->gameSession->refresh();
         $this->loadCurrent();
+        $this->broadcastState();
     }
 
+    // Contar cuántos participantes deben responder.
     private function participantsCount(): int
     {
         return SessionParticipant::where('game_session_id', $this->gameSession->id)->count();
@@ -129,6 +140,7 @@ class RunSession extends Component
             ->orderByDesc('score')->orderBy('time_total_ms')->take(5)->get();
     }
 
+    // Auto-revelar cuando todos ya contestaron.
     private function revealIfAllAnswered(): void
     {
         // Necesitamos estar corriendo, no en pausa, y tener pregunta actual
@@ -146,10 +158,26 @@ class RunSession extends Component
         // Si todos respondieron, revelamos (pausamos) exactamente una vez
         if ($aCount >= $pCount) {
             $this->gameSession->update(['is_paused' => true]); // esto hace que en alumno/Docente se muestre "Correcta" + feedback
+            $this->broadcastState();
             $this->dispatch('toast', body: 'Todos respondieron — respuesta revelada');
         }
     }
 
+    // Enviar un snapshot del estado a los clientes.
+    private function broadcastState(): void
+    {
+        $s = $this->gameSession->fresh();
+        GameSessionStateChanged::dispatch($s->id, [
+            'is_active'  => $s->is_active,
+            'is_running' => $s->is_running,
+            'is_paused' => $s->is_paused,
+            'current_q_index' => $s->current_q_index,
+            'current_q_started_at' => optional($s->current_q_started_at)?->toIso8601String(),
+        ]);
+    }
+
+    // Renderizar la vista Livewire.
+    #[On('render')]
     public function render()
     {
         $this->gameSession->refresh();

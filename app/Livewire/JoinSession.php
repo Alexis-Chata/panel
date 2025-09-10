@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Events\ParticipantJoined;
 use App\Models\DeviceLock;
 use App\Models\GameSession;
 use App\Models\SessionParticipant;
@@ -53,10 +54,25 @@ class JoinSession extends Component
         );
 
         // Si ya existe participante, no duplicar
-        SessionParticipant::firstOrCreate(
+        $participant = SessionParticipant::firstOrCreate(
             ['game_session_id' => $session->id, 'user_id' => $user->id],
             ['nickname' => $user->name]
         );
+
+        // Total actualizado de participantes
+        $total = $session->participants()->count();
+
+        // Dispara el broadcast
+        event(new ParticipantJoined(
+            sessionId: $session->id,
+            participant: [
+                'id'       => $participant->id,
+                'user_id'  => $participant->user_id,
+                'nickname' => $participant->nickname,
+                'score'    => $participant->total_score,
+            ],
+            total: $total
+        ));
 
         Cookie::queue(
             'panel_device_hash_' . $session->id,

@@ -1,4 +1,4 @@
-<div wire:poll.1000ms x-data
+<div x-data
     x-on:countdown.window="
         let el = document.getElementById('countdown-box');
         el.classList.remove('d-none');
@@ -143,3 +143,49 @@
         </div>
     </div>
 </div>
+@push('js')
+    <script>
+        window.addEventListener('livewire:init', () => {
+            const sid = @json($gameSession->id);
+
+            function ready() {
+                return window.Livewire && window.Echo;
+            }
+
+            function ensure() {
+                if (!ready()) return setTimeout(ensure, 100);
+                window.__panelSubs ??= {};
+                const key = 'run-' + sid;
+                if (window.__panelSubs[key]) return;
+                window.__panelSubs[key] = true;
+
+                window.Echo.private(`session.${sid}`)
+                    .listen('.GameSessionStateChanged', () => Livewire.dispatch('syncState'))
+                    .listen('.AnswerSubmitted', () => Livewire.dispatch('refreshStats'));
+            }
+            ensure();
+
+            window.Echo.join(`game-session.${sid}`)
+                .here((users) => {
+                    // Usuarios presentes al cargar
+                    console.log('Presentes:', users);
+                })
+                .joining((user) => {
+                    // Usuario acaba de conectarse al canal
+                    console.log('Se unió (presence):', user);
+                })
+                .leaving((user) => {
+                    // Usuario se fue del canal
+                    console.log('Salió (presence):', user);
+                })
+                .listen('.participant.joined', (e) => {
+                    // Tu evento custom: llega con { participant, total, joined_at }
+                    console.log('Evento participant.joined', e);
+                    // Aquí puedes actualizar contadores, listas, toasts, etc.
+                    // Por ejemplo:
+                    // document.getElementById('total-participants').innerText = e.total;
+                    window.Livewire?.dispatch('render');
+                });
+        });
+    </script>
+@endpush

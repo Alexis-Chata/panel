@@ -2,7 +2,7 @@
     $timer = $current ? $current->timer_override ?? $gameSession->timer_default : 0;
 @endphp
 
-<div wire:poll.1000ms>
+<div>
     {{-- 1) No hay pregunta actual --}}
     @if (!$current)
         <div class="card">
@@ -74,10 +74,17 @@
                     if (Number.isNaN(this.seconds)) this.seconds = left;
                 }
             }"
-            x-init="// Arranca el loop de 1s
-            setInterval(() => { tick() }, 1000);
-            // Primera sincronización
-            syncFromServer();" x-effect="syncFromServer()" class="card">
+            x-init="// sincroniza al montar
+            syncFromServer();
+
+            // loop 1s
+            const __int = setInterval(() => { recompute() }, 1000);
+
+            // si deja de correr, corta (evita seguir llamando $wire)
+            $watch('running', v => { if (!v) clearInterval(__int) });
+
+            // cleanup cuando Livewire reemplace este nodo
+            return () => { clearInterval(__int) };" x-effect="syncFromServer()" class="card">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="badge badge-secondary">
@@ -134,3 +141,49 @@
         </div>
     @endif
 </div>
+
+@push('js')
+    <script>
+        (function() {
+            const sid = @json($gameSession->id); // id real de la sesión
+            const key = 'play-auto-' + sid;
+
+            // Evita doble suscripción entre navegaciones/livewire
+            window.__panelSubs ??= {};
+            if (window.__panelSubs[key]) return;
+            window.__panelSubs[key] = true;
+
+            // Espera a que Livewire, Echo y el componente estén listos
+            function getCompId() {
+                // Prioriza el root marcado
+                const root = document.querySelector('#play-basic-root[wire\\:id]') ||
+                    document.querySelector('#play-basic-root [wire\\:id]');
+                const any = root || document.querySelector('[wire\\:id]');
+                return any ? any.getAttribute('wire:id') : null;
+            }
+
+            (function boot() {
+                if (!window.Echo || !window.Livewire) return setTimeout(boot, 80);
+                const compId = getCompId();
+                if (!compId) return setTimeout(boot, 80);
+
+                const callSafe = (method) => {
+                    const comp = Livewire.find(compId);
+                    if (comp && typeof comp.call === 'function') comp.call(method);
+                };
+
+                // Suscríbete al canal privado y llama métodos del componente directamente
+                try {
+                    window.Echo.private(`session.${sid}`)
+                        .listen('.GameSessionStateChanged', () => callSafe('syncState'))
+                        .listen('.AnswerSubmitted', () => callSafe('refreshStats'));
+                } catch (e) {
+                    console.warn('Suscripción WS falló, reintentando...', e);
+                    window.__panelSubs[key] = false; // permite reintento
+                    setTimeout(boot, 300);
+                    return;
+                }
+            })();
+        })();
+    </script>
+@endpush
