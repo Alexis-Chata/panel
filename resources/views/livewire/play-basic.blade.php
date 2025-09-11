@@ -25,19 +25,43 @@
             </div>
         </div>
 
-        {{-- 2) La partida existe pero AÚN NO ha iniciado --}}
-    @elseif(!$gameSession->is_running)
-        <div class="card">
-            <div class="card-body text-center">
-                <span class="badge badge-secondary mb-2">
-                    Q #{{ $gameSession->current_q_index + 1 }} / {{ $gameSession->questions_total }}
-                </span>
-                <h5 class="mb-2">Esperando que el docente inicie…</h5>
-                <div class="text-muted">Mantente listo. El juego comenzará en breve.</div>
-            </div>
-        </div>
+      {{-- 2) La partida existe pero AÚN NO ha iniciado --}}
+        @elseif(!$gameSession->is_running)
+            <div class="card lobby-card card-lift card-lift--dark">
+                <div class="card-body text-center" wire:poll.4s.keep-alive="refreshRoster">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
+                        <span class="badge badge-secondary">
+                            Q #{{ $gameSession->current_q_index + 1 }} / {{ $gameSession->questions_total }}
+                        </span>
+                        <span class="lobby-badge">Sala de espera</span>
+                        <span class="badge badge-info">
+                            <i class="fas fa-users mr-1"></i>{{ count($roster) }}
+                        </span>
+                    </div>
 
-        {{-- 3) La partida está corriendo: mostramos la pregunta --}}
+                    <h5 class="mb-1">Esperando que el docente inicie…</h5>
+                    <div class="text-muted mb-3">Mantente listo. El juego comenzará en breve.</div>
+
+                    {{-- Grilla de avatares mejorada --}}
+                    <div class="avatar-grid">
+                        @forelse($roster as $p)
+                            <div class="avatar-item text-center" data-pid="{{ $p['id'] }}" style="width:96px">
+                                <div class="avatar-outer mb-1" data-toggle="tooltip" title="{{ $p['name'] }}">
+                                    <img src="{{ $p['photo_url'] }}" class="avatar-photo" alt="{{ $p['name'] }}" loading="lazy">
+                                    <span class="presence-dot" aria-hidden="true"></span> {{-- se vuelve “verde” si usas presence --}}
+                                </div>
+                                <div class="avatar-name text-truncate small">{{ $p['first_name'] }}</div>
+                            </div>
+                        @empty
+                            <div class="text-muted small">Aún no hay participantes conectados.</div>
+                        @endforelse
+                    </div>
+
+                    <div class="mt-3 small text-muted">
+                        {{ count($roster) }} participante{{ count($roster) === 1 ? '' : 's' }} conectado{{ count($roster) === 1 ? '' : 's' }}
+                    </div>
+                </div>
+            </div>
         {{-- 3) La partida está corriendo: pregunta + cronómetro sincronizado con servidor --}}
     @else
         <div {{-- Remonta Alpine al cambiar de pregunta o de marca de inicio --}}
@@ -187,3 +211,47 @@
         })();
     </script>
 @endpush
+
+@push('js')
+<script>
+    (function() {
+        const sid = @json($gameSession->id);
+        const key = 'play-auto-' + sid;
+        window.__panelSubs ??= {};
+        if (window.__panelSubs[key]) return;
+        window.__panelSubs[key] = true;
+
+        function getCompId() {
+            const root = document.querySelector('#play-basic-root[wire\\:id]') ||
+                document.querySelector('#play-basic-root [wire\\:id]');
+            const any = root || document.querySelector('[wire\\:id]');
+            return any ? any.getAttribute('wire:id') : null;
+        }
+        (function boot() {
+            if (!window.Echo || !window.Livewire) return setTimeout(boot, 80);
+            const compId = getCompId();
+            if (!compId) return setTimeout(boot, 80);
+
+            const callSafe = (method) => {
+                const comp = Livewire.find(compId);
+                if (comp && typeof comp.call === 'function') comp.call(method);
+            };
+
+            try {
+                window.Echo.private(`session.${sid}`)
+                    .listen('.GameSessionStateChanged', () => callSafe('syncState'))
+                    .listen('.AnswerSubmitted',        () => callSafe('refreshStats'))
+                    // ▼ Opcional si emites estos eventos al unirse/salir
+                    .listen('.ParticipantJoined',      () => callSafe('refreshRoster'))
+                    .listen('.ParticipantLeft',        () => callSafe('refreshRoster'));
+            } catch (e) {
+                console.warn('Suscripción WS falló, reintentando...', e);
+                window.__panelSubs[key] = false;
+                setTimeout(boot, 300);
+                return;
+            }
+        })();
+    })();
+</script>
+@endpush
+

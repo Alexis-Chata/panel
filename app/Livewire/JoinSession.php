@@ -88,7 +88,7 @@ class JoinSession extends Component
         return view('livewire.join-session')
             ->layout('layouts.adminlte', [
                 'title' => 'Unirse a partida',
-                'header' => 'Unirse a una partida',
+                'header' => '',
             ]);
     }
 }

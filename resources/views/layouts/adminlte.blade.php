@@ -12,6 +12,7 @@
 @endsection
 
 {{-- Slot principal de Livewire --}}
+@section('classes_body', 'dark-mode')
 @section('content')
     {{ $slot }}
 @endsection

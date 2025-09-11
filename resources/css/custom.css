@@ -107,3 +107,161 @@
         gap: 3rem !important;
     }
 }
+
+/* Fondo suave tipo “hero” */
+.panel-hero {
+    min-height: calc(100vh - 3.5rem); /* respeta header AdminLTE */
+    padding: 2rem 1rem;
+}
+
+/* Card levitando levemente */
+.card-lift {
+    border-radius: .8rem;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+.card-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 .5rem 1.25rem rgba(0,0,0,.08);
+}
+
+/* Chip de marca */
+.brand-chip {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: #e7f0ff;
+    color: #2563eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+/* Input grande con look “código” */
+.code-input {
+    letter-spacing: .22em;
+    font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    text-align: center;
+}
+
+/* Badges de estado */
+.badge-online    { background: #e6fbef; color: #107a3a; }
+.badge-offline   { background: #fdecec; color: #a11b1b; }
+.badge-pending   { background: #fff7e6; color: #8a5300; }
+
+/* Oculta hasta que Alpine monte */
+[x-cloak] { display: none !important; }
+
+/* Avatares circulares con aro */
+.avatar-frame {
+    width: 72px;
+    height: 72px;
+    border-radius: 9999px;
+    overflow: hidden;
+    display: inline-block;
+    border: 2px solid rgba(59,130,246,.85);         /* aro azul */
+    box-shadow: 0 0 0 3px rgba(59,130,246,.18);     /* halo */
+    background: #0e1629;                            /* fallback en dark */
+}
+.avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Dark-friendly text */
+.dark-mode .avatar-frame { background: #0e1629; border-color: rgba(96,165,250,.9); box-shadow: 0 0 0 3px rgba(96,165,250,.22); }
+
+/* Card del lobby (oscuro, sutil) */
+.lobby-card {
+    border: 1px solid #1f2a44;
+    background: linear-gradient(180deg, #0b1220, #0d1529);
+}
+
+/* Chip "Sala de espera" */
+.lobby-badge {
+    display: inline-block;
+    padding: .25rem .6rem;
+    border-radius: 9999px;
+    background: rgba(59,130,246,.15);
+    color: #93c5fd;
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+/* Grilla responsiva de avatares */
+.avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 14px;
+    justify-items: center;
+}
+@media (min-width: 576px) {
+    .avatar-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 96px)); }
+}
+
+/* Contenedor con aro degradado y glow */
+.avatar-outer {
+    width: 84px;
+    height: 84px;
+    border-radius: 9999px;
+    padding: 3px;
+    position: relative;
+    background: conic-gradient(from 140deg,
+        rgba(59,130,246,.95),
+        rgba(16,185,129,.95),
+        rgba(59,130,246,.95)
+    );
+    box-shadow: 0 8px 20px rgba(0,0,0,.25), inset 0 0 0 2px rgba(0,0,0,.35);
+    transition: transform .15s ease, box-shadow .2s ease;
+}
+
+.avatar-outer:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 10px 26px rgba(0,0,0,.32), inset 0 0 0 2px rgba(0,0,0,.35);
+}
+
+/* Foto dentro del aro */
+.avatar-photo {
+    width: 100%;
+    height: 100%;
+    border-radius: 9999px;
+    object-fit: cover;
+    display: block;
+    background: #0e1629; /* skeleton oscuro por si tarda en cargar */
+    border: 2px solid rgba(255,255,255,.06);
+}
+
+/* Nombre debajo del avatar */
+.avatar-name { max-width: 84px; color: #9aa7bd; }
+
+/* Dot de presencia (verde = online) */
+.presence-dot {
+    position: absolute;
+    right: 4px;
+    bottom: 6px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #64748b;              /* gris por defecto (sin presence) */
+    border: 2px solid #0b1220;        /* borde acorde a card dark */
+    box-shadow: none;
+}
+/* Si marcas .online en .avatar-item, el dot late en verde */
+.avatar-item.online .presence-dot {
+    background: #10b981;
+    box-shadow: 0 0 0 0 rgba(16,185,129,.6);
+    animation: pulseDot 1.5s infinite;
+}
+@keyframes pulseDot {
+    0%   { box-shadow: 0 0 0 0 rgba(16,185,129,.6); }
+    70%  { box-shadow: 0 0 0 10px rgba(16,185,129,0); }
+    100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+}
+
+/* Modo oscuro global (AdminLTE) */
+.dark-mode .lobby-card { background: linear-gradient(180deg, #0b1220, #0d1529); border-color: #1f2a44; }
+
