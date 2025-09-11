@@ -25,6 +25,9 @@
                     </span>
                 </div>
                 <div class="btn-group">
+                    <a href="{{ route('screen.display', $gameSession) }}" class="btn btn-primary btn-sm" target="_blank">
+                        Pantalla completa
+                    </a>
                     <button class="btn btn-outline-primary btn-sm" wire:click="start"><i class="fas fa-play mr-1"></i>
                         Iniciar</button>
                     <button class="btn btn-outline-secondary btn-sm" wire:click="togglePause">

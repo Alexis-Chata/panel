@@ -7,7 +7,9 @@ use App\Livewire\JoinSession;
 use App\Livewire\ManageQuestions;
 use App\Livewire\ManageSessions;
 use App\Livewire\PlayBasic;
+use App\Livewire\PlayFullscreen;
 use App\Livewire\RunSession;
+use App\Livewire\ScreenDisplay;
 use App\Livewire\WinnersView;
 use App\Models\Answer;
 use App\Models\GameSession;
@@ -123,6 +125,8 @@ Route::middleware(['auth'])->group(function () {
         $filename = 'resultados_' . $gameSession->code . '.xlsx';
         return Excel::download(new GameSessionResultsExport($gameSession->id), $filename);
     })->middleware(['auth'])->name('sessions.export.excel');
+
+    Route::get('screen/{gameSession}', ScreenDisplay::class)->name('screen.display');
 
     // Docente/Admin
     Route::middleware(['role:Admin|Docente'])->group(function () {
