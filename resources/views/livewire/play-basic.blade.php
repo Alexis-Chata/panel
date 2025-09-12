@@ -63,54 +63,61 @@
                 </div>
             </div>
         {{-- 3) La partida está corriendo: pregunta + cronómetro sincronizado con servidor --}}
-    @else
-        <div {{-- Remonta Alpine al cambiar de pregunta o de marca de inicio --}}
+        @else
+        <div
             wire:key="q-{{ $gameSession->id }}-{{ $gameSession->current_q_index }}-{{ optional($gameSession->current_q_started_at)->timestamp ?? 'none' }}"
-            {{-- Datos que Livewire actualiza cada render --}} data-left="{{ $secondsLeft }}"
+            data-left="{{ $secondsLeft }}"
             data-running="{{ $gameSession->is_running ? 'true' : 'false' }}"
-            data-paused="{{ $gameSession->is_paused ? 'true' : 'false' }}" x-data="{
+            data-paused="{{ $gameSession->is_paused ? 'true' : 'false' }}"
+            x-data="{
                 seconds: parseInt($el.getAttribute('data-left') || '0', 10),
-                running: {{ !$gameSession->is_paused && $gameSession->is_running ? 'true' : 'false' }},
+                total: {{ (int) $timer }},
+                running: {{ (!$gameSession->is_paused && $gameSession->is_running) ? 'true' : 'false' }},
                 answered: {{ $answered_option_id ? 'true' : 'false' }},
-
+                percent() {
+                    if (!this.total) return 0;
+                    const p = Math.round((this.seconds / this.total) * 100);
+                    return Math.max(0, Math.min(100, p));
+                },
                 tick() {
                     if (!this.running || this.answered) return;
                     if (this.seconds > 0) {
                         this.seconds--;
                         if (this.seconds <= 0 && !this.answered) {
-                            // tiempo agotado; el servidor validará nuevamente
                             $wire.answer(null, 0);
                         }
                     }
                 },
-
                 syncFromServer() {
                     const left = parseInt($el.getAttribute('data-left') || '0', 10);
                     const srvRun = $el.getAttribute('data-running') === 'true';
                     const srvPause = $el.getAttribute('data-paused') === 'true';
                     this.running = srvRun && !srvPause;
-
-                    // Solo AJUSTA hacia abajo (nunca sube)
-                    if (!Number.isNaN(left) && left < this.seconds) {
-                        this.seconds = left;
-                    }
-                    // Si por alguna razón seconds no está inicializado, ponlo
+                    if (!Number.isNaN(left) && left < this.seconds) this.seconds = left;
                     if (Number.isNaN(this.seconds)) this.seconds = left;
+                },
+                handleKey(e) {
+                    if (!this.running || this.answered) return;
+                    const map = {'1':0,'2':1,'3':2,'4':3,'5':4,'6':5,'7':6,'8':7,'9':8};
+                    if (e.key in map) {
+                        const idx = map[e.key];
+                        const btn = $el.querySelectorAll('.option-card')[idx];
+                        if (btn) btn.click();
+                    }
                 }
             }"
-            x-init="// sincroniza al montar
-            syncFromServer();
-
-            // loop 1s
-            const __int = setInterval(() => { recompute() }, 1000);
-
-            // si deja de correr, corta (evita seguir llamando $wire)
-            $watch('running', v => { if (!v) clearInterval(__int) });
-
-            // cleanup cuando Livewire reemplace este nodo
-            return () => { clearInterval(__int) };" x-effect="syncFromServer()" class="card">
+            x-init="
+                syncFromServer();
+                const __int = setInterval(() => { tick() }, 1000);   // ← FIX: tick()
+                window.addEventListener('keydown', handleKey);
+                $watch('running', v => { if (!v) clearInterval(__int) });
+                return () => { clearInterval(__int); window.removeEventListener('keydown', handleKey); };
+            "
+            x-effect="syncFromServer()"
+            class="card question-card card-lift card-lift--dark"
+        >
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="badge badge-secondary">
                         Q #{{ $gameSession->current_q_index + 1 }} / {{ $gameSession->questions_total }}
                     </span>
@@ -122,32 +129,64 @@
                     </span>
                 </div>
 
-                <hr>
+                {{-- Barra de tiempo ligada a Alpine --}}
+                <div class="progress timebar mb-3" aria-label="Tiempo restante">
+                    <div class="progress-bar"
+                        role="progressbar"
+                        :style="`width: ${percent()}%`"
+                        :aria-valuenow="percent()"
+                        aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
 
                 @if ($gameSession->student_view_mode === 'full')
                     <h5 class="mb-3">{{ $current->question->statement }}</h5>
                 @endif
 
-                <div class="list-group">
+                {{-- Alternativas como cards --}}
+                <div class="options-wrap">
                     @foreach ($current->question->options->sortBy('opt_order') as $opt)
-                        <button
-                            class="list-group-item list-group-item-action d-flex justify-content-between align-items-center
-                 {{ $answered_option_id === $opt->id ? 'active' : '' }}"
-                            :disabled="answered || !running"
-                            @click="
-            if (!answered && running) {
-              answered = true;
-              $wire.answer({{ $opt->id }}, 0); // el server registra el tiempo real
-            }
-          ">
-                            <div><strong>{{ $opt->label }}.</strong> {{ $opt->content }}</div>
-                            @if ($gameSession->is_paused && $opt->is_correct)
-                                <span class="badge badge-success">Correcta</span>
+                        @php
+                            $isSelected = $answered_option_id === $opt->id;
+                            $isCorrect = (bool) $opt->is_correct;
+                            $showCorrect = $gameSession->is_paused && $isCorrect;
+                            $showWrong = $gameSession->is_paused && $isSelected && !$isCorrect;
+                        @endphp
+
+                        <button type="button"
+                                class="option-card list-group-item list-group-item-action d-flex align-items-center
+                                    {{ $isSelected ? 'selected' : '' }}
+                                    {{ $showCorrect ? 'is-correct' : '' }}
+                                    {{ $showWrong ? 'is-wrong' : '' }}"
+                                :disabled="answered || !running"
+                                @click="
+                                    if (!answered && running) {
+                                        answered = true;
+                                        $wire.answer({{ $opt->id }}, 0);
+                                    }
+                                ">
+                            <span class="option-bubble mr-3">{{ $opt->label }}</span>
+                            <span class="option-text flex-fill text-left">{{ $opt->content }}</span>
+
+                            {{-- Estado visual a la derecha --}}
+                            @if ($showCorrect)
+                                <span class="right-pill">
+                                    <i class="fas fa-check"></i>
+                                </span>
+                            @elseif ($showWrong)
+                                <span class="right-pill wrong">
+                                    <i class="fas fa-times"></i>
+                                </span>
+                            @elseif ($isSelected)
+                                <span class="right-pill neutral">
+                                    <i class="fas fa-dot-circle"></i>
+                                </span>
                             @endif
                         </button>
                     @endforeach
                 </div>
 
+                {{-- Feedback y estados inferiores --}}
                 @if ($answered_option_id && $gameSession->is_paused)
                     @if ($current->feedback_override ?? $current->question->feedback)
                         <div class="alert alert-info mt-3">
@@ -163,7 +202,7 @@
                 @endif
             </div>
         </div>
-    @endif
+        @endif
 </div>
 
 @push('js')

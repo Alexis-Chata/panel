@@ -265,3 +265,80 @@
 /* Modo oscuro global (AdminLTE) */
 .dark-mode .lobby-card { background: linear-gradient(180deg, #0b1220, #0d1529); border-color: #1f2a44; }
 
+/**************************************************************************************/
+/* Card de pregunta en modo oscuro (coincide con tu look) */
+.question-card { border: 1px solid #1f2a44; background: linear-gradient(180deg, #0b1220, #0d1529); }
+
+/* Barra de tiempo más visible */
+.timebar { height: 10px; background-color: #0f1b34; border-radius: 9999px; overflow: hidden; }
+.timebar .progress-bar {
+    background: linear-gradient(90deg, #22c55e, #3b82f6);
+    transition: width .35s ease;
+}
+
+/* Contenedor de opciones */
+.options-wrap { display: grid; grid-template-columns: 1fr; grid-row-gap: .6rem; }
+
+/* Estilo base de cada opción (card) */
+.option-card {
+    background: #0e1629;
+    border: 1px solid #1f2a44;
+    color: #e5e7eb;
+    padding: .9rem .95rem;
+    border-radius: .8rem;
+    transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+}
+.option-card:hover:not([disabled]) {
+    transform: translateY(-1px);
+    box-shadow: 0 .5rem 1.25rem rgba(0,0,0,.18);
+    border-color: #355195;
+}
+
+/* Burbuja de letra (A, B, C…) */
+.option-bubble {
+    width: 36px; height: 36px; border-radius: 9999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: radial-gradient(100% 100% at 30% 30%, rgba(59,130,246,.85), rgba(37,99,235,.75));
+    color: #fff; font-weight: 700;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.10);
+}
+
+/* Texto de la opción */
+.option-text { color: #cbd5e1; }
+
+/* Pill de estado a la derecha */
+.right-pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 9999px;
+    background: rgba(34,197,94,.18); color: #34d399;
+}
+.right-pill.neutral { background: rgba(59,130,246,.18); color: #93c5fd; }
+.right-pill.wrong   { background: rgba(239,68,68,.18);  color: #f87171; }
+
+/* Estado seleccionado (antes de revelar) */
+.option-card.selected {
+    border-color: #3b82f6;
+    background: #0f1b34;
+    box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+}
+
+/* Estados al pausar/revelar */
+.option-card.is-correct {
+    border-color: #22c55e;
+    background: linear-gradient(180deg, #0f1b34, #0f2220);
+    box-shadow: 0 0 0 3px rgba(34,197,94,.18);
+}
+.option-card.is-wrong {
+    border-color: #ef4444;
+    background: linear-gradient(180deg, #1a0f14, #190e12);
+    box-shadow: 0 0 0 3px rgba(239,68,68,.18);
+}
+
+/* Deshabilitada */
+.option-card[disabled] {
+    opacity: .75;
+    cursor: not-allowed;
+}
+
+/* Responsive (dos columnas en ≥ md si quieres) */
+/* @media (min-width: 768px) { .options-wrap { grid-template-columns: 1fr 1fr; grid-column-gap: .8rem; } } */
