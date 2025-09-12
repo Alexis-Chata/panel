@@ -25,9 +25,12 @@
                     </span>
                 </div>
                 <div class="btn-group">
-                    <a href="{{ route('screen.display', $gameSession) }}" class="btn btn-primary btn-sm" target="_blank">
+                    <a href="{{ route('screen.display', $gameSession) }}" class="btn btn-primary" target="_blank">
                         Pantalla completa
                     </a>
+                    <button type="button" class="btn btn-outline-info" data-toggle="modal" data-target="#qrJoinModal">
+                        <i class="fas fa-qrcode"></i> Mostrar QR
+                    </button>
                     <button class="btn btn-outline-primary btn-sm" wire:click="start"><i class="fas fa-play mr-1"></i>
                         Iniciar</button>
                     <button class="btn btn-outline-secondary btn-sm" wire:click="togglePause">
@@ -145,7 +148,49 @@
             @endif
         </div>
     </div>
+    {{-- Modal: QR para unirse --}}
+    <div class="modal fade" id="qrJoinModal" tabindex="-1" role="dialog" aria-labelledby="qrJoinLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title" id="qrJoinLabel">Únete a la partida</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+
+                @php
+                    $code = strtoupper($gameSession->code);
+                    $joinUrl = route('play.bycode', ['code' => $code]); // redirige a join con code
+                @endphp
+
+                <div class="modal-body text-center">
+                    <div id="qrCanvas" class="d-inline-block p-2 bg-white rounded"></div>
+
+                    <div class="mt-3 small text-muted">Escanea el QR o visita:</div>
+                    <div class="mt-1">
+                        <code id="joinLink" class="d-inline-block text-wrap text-bold"
+                            style="word-break:break-all;">{{ $joinUrl }}</code>
+                    </div>
+
+                    <div class="mt-2">
+                        <span class="badge badge-info">Código: {{ $code }}</span>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-0">
+                    <button type="button" id="copyJoinLink" class="btn btn-outline-light btn-sm">
+                        <i class="far fa-copy"></i> Copiar enlace
+                    </button>
+                    <button type="button" class="btn btn-primary" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
+@once
 @push('js')
     <script>
         window.addEventListener('livewire:init', () => {
@@ -191,4 +236,49 @@
                 });
         });
     </script>
+    {{-- Librería liviana de QR (frontend) --}}
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+        (function() {
+            // Bind delegados y con namespace para evitar duplicados
+            $(document)
+                .off('shown.bs.modal.qr', '#qrJoinModal')
+                .on('shown.bs.modal.qr', '#qrJoinModal', function() {
+                    // Toma el link actual del DOM (no dependemos de variables PHP aquí)
+                    var joinUrl = (document.getElementById('joinLink')?.textContent || '').trim();
+
+                    // Re-genera el QR limpio cada vez que se abre el modal
+                    var el = document.getElementById('qrCanvas');
+                    if (el) {
+                        el.innerHTML = '';
+                        new QRCode(el, {
+                            text: joinUrl,
+                            width: 260,
+                            height: 260,
+                            correctLevel: QRCode.CorrectLevel.M
+                        });
+                    }
+                });
+
+            $(document)
+                .off('click.qr', '#copyJoinLink')
+                .on('click.qr', '#copyJoinLink', function(e) {
+                    e.preventDefault();
+                    var txt = (document.getElementById('joinLink')?.textContent || '').trim();
+                    if (!txt) return;
+
+                    navigator.clipboard.writeText(txt).then(function() {
+                        // Feedback sin duplicados
+                        if (!window.__qrCopiedAck) {
+                            window.__qrCopiedAck = true;
+                            alert('Enlace copiado');
+                            setTimeout(function() {
+                                window.__qrCopiedAck = false;
+                            }, 600);
+                        }
+                    });
+                });
+        })();
+    </script>
 @endpush
+@endonce

@@ -11,8 +11,9 @@
     @endisset
 @endsection
 
-{{-- Slot principal de Livewire --}}
 @section('classes_body', 'dark-mode')
+
+{{-- Slot principal de Livewire --}}
 @section('content')
     {{ $slot }}
 @endsection
