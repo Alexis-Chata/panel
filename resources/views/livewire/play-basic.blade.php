@@ -67,50 +67,13 @@
         {{-- 3) La partida está corriendo: pregunta + cronómetro sincronizado con servidor --}}
     @else
         <div wire:key="q-{{ $gameSession->id }}-{{ $gameSession->current_q_index }}-{{ optional($gameSession->current_q_started_at)->timestamp ?? 'none' }}"
-            data-left="{{ $secondsLeft }}" data-running="{{ $gameSession->is_running ? 'true' : 'false' }}"
-            data-paused="{{ $gameSession->is_paused ? 'true' : 'false' }}" x-data="{
-                seconds: parseInt($el.getAttribute('data-left') || '0', 10),
-                total: {{ (int) $timer }},
-                running: {{ !$gameSession->is_paused && $gameSession->is_running ? 'true' : 'false' }},
-                answered: {{ $answered_option_id ? 'true' : 'false' }},
-                percent() {
-                    if (!this.total) return 0;
-                    const p = Math.round((this.seconds / this.total) * 100);
-                    return Math.max(0, Math.min(100, p));
-                },
-                tick() {
-                    if (!this.running || this.answered) return;
-                    if (this.seconds > 0) {
-                        this.seconds--;
-                        if (this.seconds <= 0 && !this.answered) {
-                            $wire.answer(null, 0);
-                        }
-                    }
-                },
-                syncFromServer() {
-                    const left = parseInt($el.getAttribute('data-left') || '0', 10);
-                    const srvRun = $el.getAttribute('data-running') === 'true';
-                    const srvPause = $el.getAttribute('data-paused') === 'true';
-                    this.running = srvRun && !srvPause;
-                    if (!Number.isNaN(left) && left < this.seconds) this.seconds = left;
-                    if (Number.isNaN(this.seconds)) this.seconds = left;
-                },
-                handleKey(e) {
-                    if (!this.running || this.answered) return;
-                    const map = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8 };
-                    if (e.key in map) {
-                        const idx = map[e.key];
-                        const btn = $el.querySelectorAll('.option-card')[idx];
-                        if (btn) btn.click();
-                    }
-                }
-            }"
-            x-init="syncFromServer();
-            const __int = setInterval(() => { tick() }, 1000); // ← FIX: tick()
-            window.addEventListener('keydown', handleKey);
-            $watch('running', v => { if (!v) clearInterval(__int) });
-            return () => { clearInterval(__int);
-                window.removeEventListener('keydown', handleKey); };" x-effect="syncFromServer()" class="card question-card card-lift card-lift--dark">
+            data-card-timer="{{ $gameSession->id }}:{{ $gameSession->current_q_index }}"
+            data-total="{{ (int) $timer }}" data-left="{{ $secondsLeft }}"
+            data-running="{{ $gameSession->is_running ? 'true' : 'false' }}"
+            data-paused="{{ $gameSession->is_paused ? 'true' : 'false' }}"
+            data-answered="{{ $answered_option_id ? 'true' : 'false' }}"
+            class="card question-card card-lift card-lift--dark">
+
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="badge badge-secondary">
@@ -120,14 +83,15 @@
                         {{ $gameSession->is_paused ? 'Pausa' : 'En curso' }}
                     </span>
                     <span class="badge badge-dark">
-                        ⏱ <span x-text="seconds"></span>s
+                        ⏱ <span data-seconds>{{ (int) $secondsLeft }}</span>s
                     </span>
                 </div>
 
                 {{-- Barra de tiempo ligada a Alpine --}}
                 <div class="progress timebar mb-3" aria-label="Tiempo restante">
-                    <div class="progress-bar" role="progressbar" :style="`width: ${percent()}%`"
-                        :aria-valuenow="percent()" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar" role="progressbar"
+                        style="width: {{ (int) $timer > 0 ? round(($secondsLeft / max($timer, 1)) * 100) : 0 }}%"
+                        data-progress>
                     </div>
                 </div>
 
@@ -145,18 +109,13 @@
                             $showWrong = $gameSession->is_paused && $isSelected && !$isCorrect;
                         @endphp
 
-                        <button type="button"
+                        <button
                             class="option-card list-group-item list-group-item-action d-flex align-items-center
-                                    {{ $isSelected ? 'selected' : '' }}
-                                    {{ $showCorrect ? 'is-correct' : '' }}
-                                    {{ $showWrong ? 'is-wrong' : '' }}"
-                            :disabled="answered || !running"
-                            @click="
-                                    if (!answered && running) {
-                                        answered = true;
-                                        $wire.answer({{ $opt->id }}, 0);
-                                    }
-                                ">
+                            {{ $isSelected ? 'selected' : '' }}
+                            {{ $showCorrect ? 'is-correct' : '' }}
+                            {{ $showWrong ? 'is-wrong' : '' }}"
+                            wire:click="answer({{ $opt->id }}, 0)" wire:loading.attr="disabled"
+                            wire:target="answer">
                             <span class="option-bubble mr-3">{{ $opt->label }}</span>
                             <span class="option-text flex-fill text-left">{{ $opt->content }}</span>
 
@@ -231,7 +190,10 @@
                 try {
                     window.Echo.private(`session.${sid}`)
                         .listen('.GameSessionStateChanged', () => callSafe('syncState'))
-                        .listen('.AnswerSubmitted', () => callSafe('refreshStats'));
+                        .listen('.AnswerSubmitted', () => callSafe('refreshStats'))
+                        // ▼ Opcional si emites estos eventos al unirse/salir
+                        .listen('.ParticipantJoined', () => callSafe('refreshRoster'))
+                        .listen('.ParticipantLeft', () => callSafe('refreshRoster'));
                 } catch (e) {
                     console.warn('Suscripción WS falló, reintentando...', e);
                     window.__panelSubs[key] = false; // permite reintento
@@ -241,16 +203,12 @@
             })();
         })();
     </script>
-@endpush
-
-@push('js')
     <script>
         (function() {
-            const sid = @json($gameSession->id);
-            const key = 'play-auto-' + sid;
-            window.__panelSubs ??= {};
-            if (window.__panelSubs[key]) return;
-            window.__panelSubs[key] = true;
+            // Busca y engancha a TODOS los cards que existan o aparezcan
+            function initAllTimers() {
+                document.querySelectorAll('[data-card-timer]').forEach((card) => initTimerFor(card));
+            }
 
             function getCompId() {
                 const root = document.querySelector('#play-basic-root[wire\\:id]') ||
@@ -258,30 +216,127 @@
                 const any = root || document.querySelector('[wire\\:id]');
                 return any ? any.getAttribute('wire:id') : null;
             }
-            (function boot() {
-                if (!window.Echo || !window.Livewire) return setTimeout(boot, 80);
-                const compId = getCompId();
-                if (!compId) return setTimeout(boot, 80);
 
-                const callSafe = (method) => {
-                    const comp = Livewire.find(compId);
-                    if (comp && typeof comp.call === 'function') comp.call(method);
+            function callWire(fn, ...args) {
+                try {
+                    const id = getCompId();
+                    if (!id) return;
+                    const comp = window.Livewire && window.Livewire.find ? window.Livewire.find(id) : null;
+                    if (comp && typeof comp.call === 'function') comp.call(fn, ...args);
+                } catch (e) {
+                    console.warn('LW call falló:', e);
+                }
+            }
+
+            function initTimerFor(card) {
+                // Evita doble binding por elemento
+                if (card.__timerBound) return;
+                card.__timerBound = true;
+
+                const secEl = card.querySelector('[data-seconds]');
+                const barEl = card.querySelector('[data-progress]');
+
+                const state = {
+                    seconds: parseInt(card.getAttribute('data-left') || '0', 10),
+                    running: card.getAttribute('data-running') === 'true' && card.getAttribute('data-paused') !==
+                        'true',
+                    answered: card.getAttribute('data-answered') === 'true',
+                    total: parseInt(card.getAttribute('data-total') || '0', 10),
+                    int: null
                 };
 
-                try {
-                    window.Echo.private(`session.${sid}`)
-                        .listen('.GameSessionStateChanged', () => callSafe('syncState'))
-                        .listen('.AnswerSubmitted', () => callSafe('refreshStats'))
-                        // ▼ Opcional si emites estos eventos al unirse/salir
-                        .listen('.ParticipantJoined', () => callSafe('refreshRoster'))
-                        .listen('.ParticipantLeft', () => callSafe('refreshRoster'));
-                } catch (e) {
-                    console.warn('Suscripción WS falló, reintentando...', e);
-                    window.__panelSubs[key] = false;
-                    setTimeout(boot, 300);
-                    return;
+                function render() {
+                    if (secEl) secEl.textContent = Math.max(0, state.seconds);
+                    if (barEl && state.total > 0) {
+                        const p = Math.round((Math.max(0, state.seconds) / state.total) * 100);
+                        barEl.style.width = Math.max(0, Math.min(100, p)) + '%';
+                    }
                 }
-            })();
+
+                function tick() {
+                    if (!state.running || state.answered) return;
+                    if (state.seconds > 0) {
+                        state.seconds--;
+                        render();
+                        if (state.seconds <= 0 && !state.answered) {
+                            // Auto-responder al vencer tiempo (opcional)
+                            callWire('answer', null, 0);
+                            state.answered = true;
+                            stop();
+                        }
+                    }
+                }
+
+                function start() {
+                    stop();
+                    state.int = setInterval(tick, 1000);
+                }
+
+                function stop() {
+                    if (state.int) {
+                        clearInterval(state.int);
+                        state.int = null;
+                    }
+                }
+
+                function syncFromAttrs() {
+                    const left = parseInt(card.getAttribute('data-left') || '0', 10);
+                    const srvRun = card.getAttribute('data-running') === 'true';
+                    const srvPause = card.getAttribute('data-paused') === 'true';
+                    const answered = card.getAttribute('data-answered') === 'true';
+                    const total = parseInt(card.getAttribute('data-total') || '0', 10);
+
+                    state.running = srvRun && !srvPause;
+                    state.answered = answered;
+                    state.total = Number.isNaN(total) ? state.total : total;
+
+                    if (!Number.isNaN(left)) {
+                        // Solo baja para evitar saltos
+                        if (Number.isNaN(state.seconds) || left < state.seconds) state.seconds = left;
+                    }
+
+                    if (state.running && !state.int) start();
+                    if (!state.running && state.int) stop();
+                    render();
+                }
+
+                // Arranque inicial
+                render();
+                if (state.seconds > 0 && state.running) start();
+
+                // Observa cambios de atributos del card (Livewire los muta)
+                const attrObs = new MutationObserver(syncFromAttrs);
+                attrObs.observe(card, {
+                    attributes: true,
+                    attributeFilter: ['data-left', 'data-running', 'data-paused', 'data-answered', 'data-total']
+                });
+
+                // Limpia cuando el card sea removido del DOM (al cambiar de pregunta)
+                const removalObs = new MutationObserver(() => {
+                    if (!document.body.contains(card)) {
+                        stop();
+                        attrObs.disconnect();
+                        removalObs.disconnect();
+                    }
+                });
+                removalObs.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+
+                // Útil para depurar
+                card.__timerState = state;
+            }
+
+            // 1) Inicializa lo que ya está en el DOM
+            initAllTimers();
+
+            // 2) Re-engancha automáticamente cuando Livewire reemplace el DOM
+            const bodyObs = new MutationObserver(() => initAllTimers());
+            bodyObs.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
         })();
     </script>
 @endpush
