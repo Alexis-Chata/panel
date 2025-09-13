@@ -11,7 +11,7 @@ use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use Maatwebsite\Excel\Facades\Excel;
 
-#[Layout('layouts.adminlte', ['title' => 'Banco de Preguntas', 'header' => 'Banco de Preguntas'])]
+#[Layout('layouts.pregunta_index', ['title' => 'Banco de Preguntas', 'header' => 'Banco de Preguntas'])]
 class ManageQuestions extends Component
 {
     use WithPagination;

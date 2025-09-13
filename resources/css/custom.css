@@ -340,5 +340,49 @@
     cursor: not-allowed;
 }
 
+.ck-editor__editable_inline {
+    min-height: 400px;
+}
+/* Altura cómoda */
+.ck-editor__editable_inline{ min-height:220px; }
+
+/* Fuerza colores legibles dentro de cards oscuras de AdminLTE */
+.ck.ck-editor__main > .ck-editor__editable{
+  background-color:#fff !important;
+  color:#212529 !important;          /* texto oscuro */
+}
+
+/* Asegura herencia correcta en el contenido */
+.ck-content{ color:#212529 !important; }
+
+/* Opcional: bordes agradables en dark-mode */
+.dark-mode .ck.ck-editor__main > .ck-editor__editable{
+  border-color:#495057 !important;
+}
+/***********************************************/
+/* Contenido enriquecido */
+.q-content{ color:#f8f9fa; line-height:1.35; } /* si tu pantalla no es dark: usa #212529 */
+.q-content img{ max-width:100%; height:auto; border-radius:12px; }
+
+/* CKEditor media (YouTube) – fuerza layout visible */
+.q-content figure.media,
+.q-content [data-oembed-url]{ display:block; margin:0 0 1rem 0; }
+
+.q-content [data-oembed-url] > div{
+  position:relative !important;
+  height:0 !important;
+  padding:0 !important;
+  padding-bottom:56.25% !important; /* 16:9 */
+}
+
+.q-content figure.media iframe{
+  position:absolute !important;
+  inset:0;
+  width:100% !important;
+  height:100% !important;
+  border:0;
+  border-radius:12px;
+}
+/**********END**********/
 /* Responsive (dos columnas en ≥ md si quieres) */
 /* @media (min-width: 768px) { .options-wrap { grid-template-columns: 1fr 1fr; grid-column-gap: .8rem; } } */

@@ -2,6 +2,7 @@
 
 use App\Exports\GameSessionAnalyticsExport;
 use App\Exports\GameSessionResultsExport;
+use App\Http\Controllers\UploadController;
 use App\Livewire\Dashboard;
 use App\Livewire\JoinSession;
 use App\Livewire\ManageQuestions;
@@ -136,6 +137,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/questions', ManageQuestions::class)
         ->name('questions.index')
         ->middleware('role:Admin|Docente');
+
+    Route::post('/ckeditor/upload', [UploadController::class, 'ckeditor'])
+    ->middleware(['auth']) // opcional
+    ->name('ckeditor.upload');
 
     Route::get('/questions/template/csv', function () {
         $csv = "statement,feedback,A,B,C,D,correct\n";
