@@ -3,6 +3,7 @@ import Echo from 'laravel-echo';
 // Para Reverb no necesitas pusher-js; si lo mantienes, no afecta.
 import Pusher from 'pusher-js';
 window.Pusher = Pusher;
+Pusher.logToConsole = true;
 
 const scheme = (import.meta.env.VITE_REVERB_SCHEME ?? "http").toLowerCase();
 const isHttps = scheme === "https";
@@ -13,6 +14,7 @@ window.Echo = new Echo({
   wsHost: import.meta.env.VITE_REVERB_HOST,
   wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
   wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
+  wsPath: '/app',
   forceTLS: isHttps,
   enabledTransports: isHttps ? ["wss"] : ["ws"],
   disableStats: true,
