@@ -118,7 +118,9 @@
                 <div class="row">
                     <div class="col-md-8">
                         <h5 class="mb-3">Pregunta</h5>
-                        <p class="lead">{{ $current->question->statement }}</p>
+                    <div class="lead ck-content" wire:ignore>
+                        {!! $current->question->statement !!}
+                    </div>
                         <div class="small text-muted">
                             Tiempo por pregunta: <strong>{{ $current->timer_override ?? $gameSession->timer_default }}
                                 s</strong>
@@ -281,4 +283,13 @@
         })();
     </script>
 @endpush
+@push('css')
+    <style>
+    .ck-content figure.media { display:block; max-width:100%; margin:1rem 0; }
+    .ck-content figure.media > div { position:relative !important; width:100% !important; padding-bottom:56.25% !important; height:0 !important; }
+    .ck-content figure.media iframe { position:absolute !important; top:0; left:0; width:100% !important; height:100% !important; display:block !important; }
+    /* Por si el editor guardó solo <oembed>, lo transformaremos con JS (abajo). */
+    </style>
+@endpush
+
 @endonce

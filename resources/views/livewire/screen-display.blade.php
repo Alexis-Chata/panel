@@ -113,23 +113,32 @@
             </div>
 
             <div class="row justify-content-center">
-                <div class="col-12 text-center mb-4">
-                    <div class="q-title">{{ $q->statement }}</div>
+                <div class="col-12 col-lg-10 col-xl-8 text-center mb-4">
+                    <div class="q-title">
+                    <div class="ck-content" wire:ignore>
+                        {!! $q->statement !!}
+                    </div>
+                    </div>
                 </div>
+            </div>
 
+            <div class="row justify-content-center">
                 <div class="col-12">
+                    <div class="row">
                     @foreach ($q->options as $opt)
-                        <div
-                            class="opt d-flex align-items-start justify-content-between {{ $gameSession->is_paused && $opt->is_correct ? 'opt-correct' : '' }}">
+                        <div class="col-12 col-lg-6 mb-3">
+                        <div class="opt h-100 d-flex align-items-start justify-content-between {{ $gameSession->is_paused && $opt->is_correct ? 'opt-correct' : '' }}">
                             <div class="d-flex">
-                                <span class="opt-badge mr-3 text-white">{{ $opt->label }}</span>
-                                <span class="opt-text">{{ $opt->content }}</span>
+                            <span class="opt-badge mr-3 text-white">{{ $opt->label }}</span>
+                            <span class="opt-text">{{ $opt->content }}</span>
                             </div>
                             @if ($gameSession->is_paused && $opt->is_correct)
-                                <span class="badge badge-success badge-lg align-self-center">Correcta</span>
+                            <span class="badge badge-success badge-lg align-self-center">Correcta</span>
                             @endif
                         </div>
+                        </div>
                     @endforeach
+                    </div>
                 </div>
             </div>
         </div>
@@ -234,3 +243,4 @@
         })();
     </script>
 @endpush
+
