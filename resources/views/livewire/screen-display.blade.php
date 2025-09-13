@@ -115,9 +115,9 @@
             <div class="row justify-content-center">
                 <div class="col-12 col-lg-10 col-xl-8 text-center mb-4">
                     <div class="q-title">
-                    <div class="ck-content" wire:ignore>
-                        {!! $q->statement !!}
-                    </div>
+                        <div class="ck-content" wire:ignore>
+                            {!! $q->statement !!}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -125,22 +125,126 @@
             <div class="row justify-content-center">
                 <div class="col-12">
                     <div class="row">
-                    @foreach ($q->options as $opt)
-                        <div class="col-12 col-lg-6 mb-3">
-                        <div class="opt h-100 d-flex align-items-start justify-content-between {{ $gameSession->is_paused && $opt->is_correct ? 'opt-correct' : '' }}">
-                            <div class="d-flex">
-                            <span class="opt-badge mr-3 text-white">{{ $opt->label }}</span>
-                            <span class="opt-text">{{ $opt->content }}</span>
+                        @foreach ($q->options as $opt)
+                            <div class="col-12 col-lg-6 mb-3">
+                                <div
+                                    class="opt h-100 d-flex align-items-start justify-content-between {{ $gameSession->is_paused && $opt->is_correct ? 'opt-correct' : '' }}">
+                                    <div class="d-flex">
+                                        <span class="opt-badge mr-3 text-white">{{ $opt->label }}</span>
+                                        <span class="opt-text">{{ $opt->content }}</span>
+                                    </div>
+                                    @if ($gameSession->is_paused && $opt->is_correct)
+                                        <span class="badge badge-success badge-lg align-self-center">Correcta</span>
+                                    @endif
+                                </div>
                             </div>
-                            @if ($gameSession->is_paused && $opt->is_correct)
-                            <span class="badge badge-success badge-lg align-self-center">Correcta</span>
-                            @endif
-                        </div>
-                        </div>
-                    @endforeach
+                        @endforeach
                     </div>
                 </div>
             </div>
+
+            {{-- ===== Resultados & Retroalimentación (solo al pausar) ===== --}}
+            @if ($gameSession->is_paused)
+                @php
+                    // Agrupar respuestas por opción (usa la relación $current->answers)
+                    $answers = $current?->answers ?? collect();
+                    $total = $answers->count();
+                    $byOpt = $answers->groupBy('option_id')->map->count();
+
+                    // Detecta un campo de retroalimentación disponible
+                    $feedback = $q->feedback_html ?? ($q->feedback ?? ($q->explanation ?? null));
+                @endphp
+
+                <style>
+                    .results-card {
+                        border: 2px solid rgba(255, 255, 255, .12);
+                        border-radius: 16px;
+                        background: rgba(255, 255, 255, .03);
+                        padding: 1rem;
+                    }
+
+                    .progress {
+                        height: clamp(12px, 2vh, 18px);
+                        background-color: rgba(255, 255, 255, .08);
+                    }
+
+                    .progress-bar {
+                        font-weight: 700;
+                    }
+
+                    .result-row+.result-row {
+                        margin-top: .75rem;
+                    }
+
+                    .retro-card {
+                        border: 2px solid rgba(0, 255, 143, .35);
+                        background: rgba(0, 255, 143, .06);
+                        border-radius: 16px;
+                    }
+                </style>
+
+                <div class="row justify-content-center mt-3">
+                    <div class="col-12 col-xl-10">
+                        <div class="results-card">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <h5 class="mb-0">Resultados</h5>
+                                <span class="badge badge-info badge-lg">
+                                    Total respuestas: {{ $total }}
+                                </span>
+                            </div>
+
+                            @if ($total === 0)
+                                <div class="text-muted">Sin respuestas registradas aún.</div>
+                            @else
+                                @foreach ($q->options as $opt)
+                                    @php
+                                        $count = (int) $byOpt->get($opt->id, 0);
+                                        $pct = $total ? round(($count * 100) / $total) : 0;
+                                        $barClass = $opt->is_correct ? 'bg-success' : 'bg-secondary';
+                                    @endphp
+
+                                    <div class="result-row">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <div class="d-flex align-items-center">
+                                                <span class="opt-badge mr-2 text-white">{{ $opt->label }}</span>
+                                                <span class="opt-text">{{ $opt->content }}</span>
+                                            </div>
+                                            <div class="text-right">
+                                                <span
+                                                    class="badge {{ $opt->is_correct ? 'badge-success' : 'badge-light' }} badge-lg">
+                                                    {{ $pct }}% ({{ $count }})
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="progress">
+                                            <div class="progress-bar {{ $barClass }}" role="progressbar"
+                                                style="width: {{ $pct }}%;"
+                                                aria-valuenow="{{ $pct }}" aria-valuemin="0"
+                                                aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                @if ($feedback)
+                    <div class="row justify-content-center mt-3">
+                        <div class="col-12 col-xl-10">
+                            <div class="retro-card p-3">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="badge badge-success mr-2">Retroalimentación</span>
+                                    <strong class="mb-0">¿Por qué esta es la respuesta?</strong>
+                                </div>
+                                <div class="ck-content">{!! $feedback !!}</div>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+            @endif
+
         </div>
     @endif
 </div>
@@ -243,4 +347,3 @@
         })();
     </script>
 @endpush
-
