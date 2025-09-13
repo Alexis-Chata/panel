@@ -1,4 +1,5 @@
 <?php
+$origins = array_filter(array_map('trim', explode(',', env('REVERB_ALLOWED_ORIGINS', 'https://panel.bricenovirtual.com'))));
 
 return [
 
@@ -82,7 +83,7 @@ return [
                     'scheme' => env('REVERB_SCHEME', 'https'),
                     'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 ],
-                'allowed_origins' => ['*'],
+                'allowed_origins' => $origins,
                 'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
                 'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
                 'max_message_size' => env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
