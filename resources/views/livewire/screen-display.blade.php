@@ -115,7 +115,7 @@
             <div class="row justify-content-center">
                 <div class="col-12 col-lg-10 col-xl-8 text-center mb-4">
                     <div class="q-title">
-                        <div class="ck-content" wire:ignore>
+                        <div class="ck-content">
                             {!! $q->statement !!}
                         </div>
                     </div>

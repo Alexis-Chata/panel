@@ -118,7 +118,7 @@
                 <div class="row">
                     <div class="col-md-8">
                         <h5 class="mb-3">Pregunta</h5>
-                    <div class="lead ck-content" wire:ignore>
+                    <div class="lead ck-content">
                         {!! $current->question->statement !!}
                     </div>
                         <div class="small text-muted">
