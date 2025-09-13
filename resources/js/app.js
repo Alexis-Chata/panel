@@ -4,4 +4,6 @@
  * allow your team to quickly build robust real-time web applications.
  */
 
-import './echo';
+// resources/js/app.js
+import './echo';         // ← crea window.Echo (tu archivo actual)
+import './reverb-demo';  // ← suscripciones (el de arriba)

@@ -1,5 +1,6 @@
 <?php
 
+use App\Events\TestEvent;
 use App\Exports\GameSessionAnalyticsExport;
 use App\Exports\GameSessionResultsExport;
 use App\Http\Controllers\UploadController;
@@ -24,6 +25,11 @@ use Maatwebsite\Excel\Facades\Excel;
 // Route::get('/', function () {
 //     return view('welcome');
 // })->name('home');
+
+Route::get('/ping', function () {
+    TestEvent::dispatch(['ok' => now()->toDateTimeString()]);
+    return 'ok';
+});
 
 Route::middleware([
     'auth:sanctum',
