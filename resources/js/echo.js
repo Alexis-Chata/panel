@@ -26,6 +26,7 @@ const profiles = {
     wsHost: import.meta.env.VITE_REVERB_HOST,
     wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
     wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
+    wsPath: '/app',
     forceTLS: isHttps, // http → false, https → true
     encrypted: isHttps,
     enabledTransports: isHttps ? ["wss"] : ["ws"],
