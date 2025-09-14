@@ -28,7 +28,7 @@ const profiles = {
     wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
     forceTLS: isHttps, // http → false, https → true
     encrypted: isHttps,
-    enabledTransports: isHttps ? ["ws", "wss"] : ["ws"],
+    enabledTransports: isHttps ? ["wss"] : ["ws"],
     disableStats: true,
   },
 };
