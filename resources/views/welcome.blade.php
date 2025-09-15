@@ -248,13 +248,24 @@
         @if (Route::has('login'))
             <div class="h-14.5 hidden lg:block"></div>
         @endif
-        <script>
-            // Suscribirse al canal público
+        <script defer type="module">
+        // Espera a que el módulo de Vite ejecute y cree window.Echo
+        document.addEventListener('DOMContentLoaded', () => {
+            const subscribe = () => {
+            if (!window.Echo) {
+                // si aún no existe, reintenta un poco más tarde
+                return setTimeout(subscribe, 50);
+            }
+
+            console.log('Suscribiendo a public.ping…');
+
             window.Echo.channel('public.ping')
-            // Si usas broadcastAs('pong'), escucha con el punto delante:
-            .listen('.pong', (e) => console.log('Evento alias .pong:', e))
-            // También puedes escuchar por el nombre de clase completamente calificado:
-            .listen('App\\Events\\PingTest', (e) => console.log('Evento por clase:', e));
+                .listen('.pong',  e => console.log('Evento alias .pong:', e))
+                .listen('App\\Events\\PingTest', e => console.log('Evento clase:', e));
+            };
+
+            subscribe();
+        });
         </script>
     </body>
 </html>
