@@ -1,9 +1,15 @@
 {{-- Pantalla full-screen de exhibición (sin menú, sin interacción, sin wire:poll) --}}
+@php
+    $q = $current?->question;
+    $finished = !$gameSession->is_active || $gameSession->current_q_index >= $gameSession->questions_total;
+@endphp
+
 <div id="screen-root" class="screen d-flex align-items-center justify-content-center p-4" {{-- Datos para el reloj (leídos por JS, se actualizan al re-render Livewire) --}}
     data-started="{{ optional($gameSession->current_q_started_at)->toIso8601String() }}"
     data-duration="{{ (int) ($current?->timer_override ?? $gameSession->timer_default) }}"
     data-paused="{{ $gameSession->is_paused ? 1 : 0 }}" data-running="{{ $gameSession->is_running ? 1 : 0 }}"
-    data-index="{{ $gameSession->current_q_index }}">
+    data-index="{{ $gameSession->current_q_index }}" data-total="{{ $gameSession->questions_total }}"
+    data-finished="{{ $finished ? 1 : 0 }}">
 
     {{-- Estilos mínimos (Bootstrap 4.6 ya está en el layout fullscreen) --}}
     <style>
@@ -88,20 +94,57 @@
             background: #17a2b8;
             display: inline-block;
         }
-    </style>
-    @php $q = $current?->question; @endphp
 
-    @if (!$gameSession->is_running || !$current || !$q)
-        {{-- Modo espera: sin cronómetro --}}
+        .results-card {
+            border: 2px solid rgba(255, 255, 255, .12);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, .03);
+            padding: 1rem;
+        }
+
+        .progress {
+            height: clamp(12px, 2vh, 18px);
+            background-color: rgba(255, 255, 255, .08);
+        }
+
+        .progress-bar {
+            font-weight: 700;
+        }
+
+        .result-row+.result-row {
+            margin-top: .75rem;
+        }
+
+        .retro-card {
+            border: 2px solid rgba(0, 255, 143, .35);
+            background: rgba(0, 255, 143, .06);
+            border-radius: 16px;
+        }
+    </style>
+
+    {{-- ======= PRIORIDAD DE ESTADOS ======= --}}
+    @if ($finished)
+        {{-- FINALIZADO --}}
         <div class="text-center w-100">
-            <div class="q-index mb-2 small text-uppercase">
-                Q #{{ $gameSession->current_q_index + 1 }} / {{ $gameSession->questions_total }}
-            </div>
+            <span class="badge badge-secondary mb-2 q-index small text-uppercase">
+                Q #{{ min($gameSession->current_q_index + 1, $gameSession->questions_total) }} /
+                {{ $gameSession->questions_total }}
+            </span>
+            <div class="q-title mb-1">¡Partida finalizada!</div>
+            <div class="muted">Gracias por participar.</div>
+        </div>
+    @elseif (!$gameSession->is_running || !$current || !$q)
+        {{-- MODO ESPERA (no iniciado) --}}
+        <div class="text-center w-100">
+            <span class="badge badge-secondary mb-2 q-index small text-uppercase">
+                Q #{{ min($gameSession->current_q_index + 1, $gameSession->questions_total) }} /
+                {{ $gameSession->questions_total }}
+            </span>
             <div class="q-title mb-1">Esperando que el docente inicie…</div>
             <div class="muted">Mantente listo. El juego comenzará en breve.</div>
         </div>
     @else
-        {{-- Pregunta + cronómetro + alternativas --}}
+        {{-- PREGUNTA EN CURSO (con cronómetro y/o pausa para reveal) --}}
         <div class="container-fluid position-relative">
 
             {{-- Cronómetro arriba a la derecha --}}
@@ -115,13 +158,12 @@
             <div class="row justify-content-center">
                 <div class="col-12 col-lg-10 col-xl-8 text-center mb-4">
                     <div class="q-title">
-                        <div class="ck-content">
-                            {!! $q->statement !!}
-                        </div>
+                        <div class="ck-content">{!! $q->statement !!}</div>
                     </div>
                 </div>
             </div>
 
+            {{-- Alternativas en 2 columnas en pantallas grandes --}}
             <div class="row justify-content-center">
                 <div class="col-12">
                     <div class="row">
@@ -143,7 +185,7 @@
                 </div>
             </div>
 
-            {{-- ===== Resultados & Retroalimentación (solo al pausar) ===== --}}
+            {{-- ===== Resultados & Retroalimentación (solo al pausar/reveal) ===== --}}
             @if ($gameSession->is_paused)
                 @php
                     // Agrupar respuestas por opción (usa la relación $current->answers)
@@ -154,34 +196,6 @@
                     // Detecta un campo de retroalimentación disponible
                     $feedback = $q->feedback_html ?? ($q->feedback ?? ($q->explanation ?? null));
                 @endphp
-
-                <style>
-                    .results-card {
-                        border: 2px solid rgba(255, 255, 255, .12);
-                        border-radius: 16px;
-                        background: rgba(255, 255, 255, .03);
-                        padding: 1rem;
-                    }
-
-                    .progress {
-                        height: clamp(12px, 2vh, 18px);
-                        background-color: rgba(255, 255, 255, .08);
-                    }
-
-                    .progress-bar {
-                        font-weight: 700;
-                    }
-
-                    .result-row+.result-row {
-                        margin-top: .75rem;
-                    }
-
-                    .retro-card {
-                        border: 2px solid rgba(0, 255, 143, .35);
-                        background: rgba(0, 255, 143, .06);
-                        border-radius: 16px;
-                    }
-                </style>
 
                 <div class="row justify-content-center mt-3">
                     <div class="col-12 col-xl-10">
@@ -280,6 +294,12 @@
                     const out = document.getElementById('timerValue');
                     if (!root || !out) return;
 
+                    const finished = root.dataset.finished === '1';
+                    if (finished) {
+                        out.textContent = '--:--';
+                        return;
+                    }
+
                     const running = root.dataset.running === '1';
                     const paused = root.dataset.paused === '1';
                     const dur = parseInt(root.dataset.duration || '0', 10);
@@ -295,20 +315,17 @@
                     let left = dur;
 
                     if (!running || !started) {
-                        // muestra duración total si aún no corre
-                        left = dur;
+                        left = dur; // muestra duración total si aún no corre
                     } else if (paused) {
-                        // congelar en el último valor conocido
                         if (lastLeft === null) {
                             const t0 = Date.parse(started);
                             const elapsed = Math.max(0, (Date.now() - t0) / 1000);
                             left = Math.max(0, Math.round(dur - elapsed));
                             lastLeft = left;
                         } else {
-                            left = lastLeft;
+                            left = lastLeft; // congelado
                         }
                     } else {
-                        // corriendo
                         const t0 = Date.parse(started);
                         const elapsed = Math.max(0, (Date.now() - t0) / 1000);
                         left = Math.max(0, Math.round(dur - elapsed));

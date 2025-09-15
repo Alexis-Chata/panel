@@ -67,10 +67,11 @@ class RunSession extends Component
         if ($next >= $this->gameSession->questions_total) {
             // Fin de la partida: desactivar, sacar del rango y pausar
             $this->gameSession->update([
-                'is_active' => false,                         // <- marca fin
+                'is_active' => false, // <- marca fin
                 'is_running' => false,
-                'is_paused'  => false,
-                'current_q_index' => $this->gameSession->questions_total, // fuera de rango
+                'is_paused' => false,
+                'current_q_index' => $this->gameSession->questions_total, // fuera de rango (para clamp)
+                'current_q_started_at' => null,
             ]);
             $this->broadcastState();
 
@@ -191,7 +192,7 @@ class RunSession extends Component
             'is_paused' => $s->is_paused,
             'current_q_index' => $s->current_q_index,
             'current_q_started_at' => optional($s->current_q_started_at)?->toIso8601String(),
-            'questions_total'       => $s->questions_total,
+            'questions_total' => $s->questions_total, // <- útil en el cliente
         ]);
     }
 
