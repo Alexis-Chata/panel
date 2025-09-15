@@ -33,7 +33,7 @@ class RunSession extends Component
 
     public function start(): void
     {
-        $this->gameSession->update(['is_running' => true, 'is_paused' => false, 'current_q_started_at' => now(),]);
+        $this->gameSession->update(['is_active' => true, 'is_running' => true, 'is_paused' => false, 'current_q_started_at' => now(),]);
         $this->broadcastState();
         $this->dispatch('toast', body: 'Partida iniciada');
     }
@@ -191,7 +191,15 @@ class RunSession extends Component
             'is_paused' => $s->is_paused,
             'current_q_index' => $s->current_q_index,
             'current_q_started_at' => optional($s->current_q_started_at)?->toIso8601String(),
+            'questions_total'       => $s->questions_total,
         ]);
+    }
+
+    #[On('syncState')]
+    public function syncState(): void
+    {
+        $this->gameSession = $this->gameSession->fresh();
+        $this->loadCurrent();
     }
 
     // Renderizar la vista Livewire.
