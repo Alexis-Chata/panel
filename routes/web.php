@@ -1,5 +1,6 @@
 <?php
 
+use App\Events\PingTest;
 use App\Events\TestEvent;
 use App\Exports\GameSessionAnalyticsExport;
 use App\Exports\GameSessionResultsExport;
@@ -28,6 +29,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 Route::get('/ping', function () {
     TestEvent::dispatch(['ok' => now()->toDateTimeString()]);
+    event(new PingTest('hola desde /ping'));
     return 'ok';
 });
 
