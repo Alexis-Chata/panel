@@ -23,9 +23,9 @@ use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Route;
 use Maatwebsite\Excel\Facades\Excel;
 
-// Route::get('/', function () {
-//     return view('welcome');
-// })->name('home');
+Route::get('/welcome', function () {
+    return view('welcome');
+})->name('home');
 
 Route::get('/ping', function () {
     TestEvent::dispatch(['ok' => now()->toDateTimeString()]);

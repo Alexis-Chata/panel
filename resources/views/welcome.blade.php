@@ -248,5 +248,13 @@
         @if (Route::has('login'))
             <div class="h-14.5 hidden lg:block"></div>
         @endif
+        <script>
+            // Suscribirse al canal público
+            window.Echo.channel('public.ping')
+            // Si usas broadcastAs('pong'), escucha con el punto delante:
+            .listen('.pong', (e) => console.log('Evento alias .pong:', e))
+            // También puedes escuchar por el nombre de clase completamente calificado:
+            .listen('App\\Events\\PingTest', (e) => console.log('Evento por clase:', e));
+        </script>
     </body>
 </html>
