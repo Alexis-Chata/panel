@@ -18,9 +18,7 @@ const profiles = {
     wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
     wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
     forceTLS: isHttps, // http → false, https → true
-    encrypted: isHttps,
     enabledTransports: isHttps ? ["ws", "wss"] : ["ws"],
-    disableStats: true,
   },
   produccion: {
     broadcaster: 'reverb',
@@ -30,8 +28,7 @@ const profiles = {
     wssPort: PORT,
     wsPath: '/app',
     forceTLS: isHttps, // http → false, https → true
-    encrypted: isHttps,
-    enabledTransports: isHttps ? ["wss"] : ["ws"],
+    enabledTransports: ['wss'],
     cluster: 'mt1',          // requerido por pusher-js v8
     enableStats: false
   },
