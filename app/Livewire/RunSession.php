@@ -47,12 +47,16 @@ class RunSession extends Component
     }
 
     /** Revela la respuesta correcta (pausa para explicación) */
+    #[On('revealAndPause')]
     public function revealAndPause(): void
     {
-        $this->gameSession->update(['is_paused' => true]);
-        // No guardamos un flag aparte: los alumnos determinan correcta leyendo la opción correcta
-        $this->dispatch('toast', body: 'Respuesta revelada y pausa activa');
-        $this->broadcastState();
+        $this->gameSession->refresh();
+        if (! $this->gameSession->is_paused) {
+            $this->gameSession->update(['is_paused' => true]);
+            // No guardamos un flag aparte: los alumnos determinan correcta leyendo la opción correcta
+            $this->dispatch('toast', body: 'Respuesta revelada y pausa activa');
+            $this->broadcastState(); // hará que el RUN/SCRREEN se refresquen
+        }
     }
 
     /** Avanza a la siguiente pregunta con conteo 3-2-1 */
@@ -83,9 +87,23 @@ class RunSession extends Component
     #[On('advanceNow')]
     public function advanceNow(): void
     {
-        $this->gameSession->increment('current_q_index');
-        $this->gameSession->update(['is_paused' => false, 'is_running' => true, 'current_q_started_at' => now(),]);
+        // Refresca estado actual antes de decidir
         $this->gameSession->refresh();
+
+        // 1er llamado tras acabarse el tiempo ⇒ REVELAR (pausa)
+        if (! $this->gameSession->is_paused) {
+            $this->revealAndPause(); // no avanzar aún
+            return;
+        }
+
+        // 2do llamado (o si ya estaba en pausa) ⇒ AVANZAR
+        $this->gameSession->increment('current_q_index');
+        $this->gameSession->update([
+            'is_paused' => false,
+            'is_running' => true,
+            'current_q_started_at' => now(),
+        ]);
+
         $this->loadCurrent();
         $this->broadcastState();
     }
