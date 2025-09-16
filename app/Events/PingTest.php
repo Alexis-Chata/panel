@@ -22,7 +22,7 @@ class PingTest implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         // canal público simple
-        return [new Channel('public.ping')];
+        return [new Channel('ping')];
     }
 
     public function broadcastAs(): string
