@@ -257,9 +257,9 @@
                 return setTimeout(subscribe, 50);
             }
 
-            console.log('Suscribiendo a public.ping…');
+            console.log('Suscribiendo a ping…');
 
-            window.Echo.channel('public.ping')
+            window.Echo.channel('ping')
                 .listen('.pong',  e => console.log('Evento alias .pong:', e))
                 .listen('App\\Events\\PingTest', e => console.log('Evento clase:', e));
             };
