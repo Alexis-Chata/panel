@@ -33,6 +33,9 @@ class PingTest implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        return ['time' => now()->toIso8601String()];
+        return [
+            'msg'  => $this->msg,                 // 👈 incluye el mensaje
+            'time' => now()->toIso8601String(),
+        ];
     }
 }
