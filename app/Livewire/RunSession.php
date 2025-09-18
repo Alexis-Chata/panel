@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Events\GameCountdownStarted;
 use App\Events\GameSessionStateChanged;
 use App\Models\Answer;
 use App\Models\GameSession;
@@ -14,6 +15,7 @@ class RunSession extends Component
 {
     public GameSession $gameSession;
     public ?SessionQuestion $current = null;
+    public bool $countdownActive = false;
 
     // Inicializar el componente
     public function mount(GameSession $gameSession)
@@ -33,11 +35,66 @@ class RunSession extends Component
 
     public function start(): void
     {
-        $this->gameSession->update(['is_active' => true, 'is_running' => true, 'is_paused' => false, 'current_q_started_at' => now(),]);
-        $this->broadcastState();
-        $this->dispatch('toast', body: 'Partida iniciada');
+        // ⚠️ No iniciar si no hay participantes
+        if ($this->participantsCount() < 1) {
+            $this->dispatch('toast', body: 'Necesitas al menos 1 participante para iniciar.');
+            return;
+        }
+
+        // Activa la partida pero aún NO arranca el cronómetro real
+        $this->gameSession->update([
+            'is_active'            => true,
+            'is_running'           => false,
+            'is_paused'            => false,
+            'current_q_started_at' => null,
+        ]);
+
+        // (Opcional) Si usas el flag de UI para ocultar "Iniciar" durante el conteo:
+        if (property_exists($this, 'countdownActive')) {
+            $this->countdownActive = true;
+        }
+
+        GameCountdownStarted::dispatch(
+            $this->gameSession->id,
+            3,
+            'start',
+            $this->gameSession->current_q_index
+        );
+
+        // RUN hace el 3-2-1 y luego llama a $wire.startNow()
+        $this->dispatch('countdown', action: 'start');
+        $this->dispatch('toast', body: 'Inicio en 3…');
     }
 
+    public function startNow(): void
+    {
+        // Defensa extra por si alguien dispara startNow() sin participantes
+        if ($this->participantsCount() < 1) {
+            $this->dispatch('toast', body: 'No hay participantes. No se puede iniciar.');
+            // (Opcional) resetea flag de UI
+            if (property_exists($this, 'countdownActive')) {
+                $this->countdownActive = false;
+            }
+            return;
+        }
+
+        $this->gameSession->refresh();
+
+        $this->gameSession->update([
+            'is_active'            => true,
+            'is_running'           => true,
+            'is_paused'            => false,
+            'current_q_started_at' => now(),
+        ]);
+
+        if (property_exists($this, 'countdownActive')) {
+            $this->countdownActive = false;
+        }
+
+        $this->loadCurrent();
+        $this->broadcastState();
+        $this->dispatch('toast', body: '¡Arrancamos!');
+    }
     // Pausar/Reanudar
     public function togglePause(): void
     {
@@ -59,52 +116,56 @@ class RunSession extends Component
         }
     }
 
-    /** Avanza a la siguiente pregunta con conteo 3-2-1 */
+    # Ajusta nextQuestion para usar el mismo patrón de conteo
     public function nextQuestion(): void
     {
         $next = $this->gameSession->current_q_index + 1;
 
         if ($next >= $this->gameSession->questions_total) {
-            // Fin de la partida: desactivar, sacar del rango y pausar
             $this->gameSession->update([
-                'is_active' => false, // <- marca fin
-                'is_running' => false,
-                'is_paused' => false,
-                'current_q_index' => $this->gameSession->questions_total, // fuera de rango (para clamp)
+                'is_active'            => false,
+                'is_running'           => false,
+                'is_paused'            => false,
+                'current_q_index'      => $this->gameSession->questions_total,
                 'current_q_started_at' => null,
             ]);
+            $this->countdownActive = false;
             $this->broadcastState();
-
-            // Ir a ganadores
             $this->redirectRoute('winners', ['gameSession' => $this->gameSession->id], navigate: true);
             return;
         }
 
-        $this->dispatch('countdown');
-        $this->dispatch('advance-after-count');
+        $this->countdownActive = true; // <- ocultar "Iniciar" / mostrar resto durante el conteo
+
+        GameCountdownStarted::dispatch(
+            $this->gameSession->id,
+            3,
+            'advance',
+            $next
+        );
+
+        $this->dispatch('countdown', action: 'advance');
     }
 
     /** Listener desde JS tras el conteo */
     #[On('advanceNow')]
     public function advanceNow(): void
     {
-        // Refresca estado actual antes de decidir
         $this->gameSession->refresh();
 
-        // 1er llamado tras acabarse el tiempo ⇒ REVELAR (pausa)
         if (! $this->gameSession->is_paused) {
-            $this->revealAndPause(); // no avanzar aún
+            $this->revealAndPause();
             return;
         }
 
-        // 2do llamado (o si ya estaba en pausa) ⇒ AVANZAR
         $this->gameSession->increment('current_q_index');
         $this->gameSession->update([
-            'is_paused' => false,
-            'is_running' => true,
+            'is_paused'            => false,
+            'is_running'           => true,
             'current_q_started_at' => now(),
         ]);
 
+        $this->countdownActive = false; // <- terminó el conteo
         $this->loadCurrent();
         $this->broadcastState();
     }

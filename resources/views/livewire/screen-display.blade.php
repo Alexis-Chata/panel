@@ -4,12 +4,29 @@
     $finished = !$gameSession->is_active || $gameSession->current_q_index >= $gameSession->questions_total;
 @endphp
 
+
 <div id="screen-root" class="screen d-flex align-items-center justify-content-center p-4" {{-- Datos para el reloj (leídos por JS, se actualizan al re-render Livewire) --}}
     data-started="{{ optional($gameSession->current_q_started_at)->toIso8601String() }}"
     data-duration="{{ (int) ($current?->timer_override ?? $gameSession->timer_default) }}"
     data-paused="{{ $gameSession->is_paused ? 1 : 0 }}" data-running="{{ $gameSession->is_running ? 1 : 0 }}"
     data-index="{{ $gameSession->current_q_index }}" data-total="{{ $gameSession->questions_total }}"
     data-finished="{{ $finished ? 1 : 0 }}">
+    <!-- Audio aviso últimos 3s -->
+    <audio id="audio-warning-3s" src="{{ asset('audio/conteo_regresivo.mp3') }}" preload="auto" playsinline></audio>
+
+    <!-- Overlay de conteo para SCREEN -->
+    <div id="screen-countdown"
+        class="position-fixed d-none"
+        style="z-index:9999; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center;">
+    <div class="text-center text-white">
+        <div id="screen-countdown-title"
+            class="mb-2"
+            style="font-weight:800; font-size: clamp(20px, 4vh, 36px); letter-spacing:.02em;">
+        ¡Comenzamos!
+        </div>
+        <div id="screen-countdown-number" class="display-1 font-weight-bold">3</div>
+    </div>
+    </div>
 
     {{-- Estilos mínimos (Bootstrap 4.6 ya está en el layout fullscreen) --}}
     <style>
@@ -188,14 +205,22 @@
             {{-- ===== Resultados & Retroalimentación (solo al pausar/reveal) ===== --}}
             @if ($gameSession->is_paused)
                 @php
-                    // Agrupar respuestas por opción (usa la relación $current->answers)
-                    $answers = $current?->answers ?? collect();
-                    $total = $answers->count();
-                    $byOpt = $answers->groupBy('option_id')->map->count();
+                    // Totales y distribución por opción usando el FQN del modelo
+                    $total = \App\Models\Answer::where('session_question_id', $current->id)
+                        ->whereNotNull('question_option_id')
+                        ->count();
 
-                    // Detecta un campo de retroalimentación disponible
+                    $byOpt = \App\Models\Answer::selectRaw('question_option_id, COUNT(*) as c')
+                        ->where('session_question_id', $current->id)
+                        ->whereNotNull('question_option_id')
+                        ->groupBy('question_option_id')
+                        ->pluck('c', 'question_option_id'); // -> Collection clave=option_id, valor=conteo
+
+                    // Feedback disponible
                     $feedback = $q->feedback_html ?? ($q->feedback ?? ($q->explanation ?? null));
                 @endphp
+
+
 
                 <div class="row justify-content-center mt-3">
                     <div class="col-12 col-xl-10">
@@ -212,8 +237,8 @@
                             @else
                                 @foreach ($q->options as $opt)
                                     @php
-                                        $count = (int) $byOpt->get($opt->id, 0);
-                                        $pct = $total ? round(($count * 100) / $total) : 0;
+                                        $count   = (int) $byOpt->get($opt->id, 0);
+                                        $pct     = $total ? round(($count * 100) / $total) : 0;
                                         $barClass = $opt->is_correct ? 'bg-success' : 'bg-secondary';
                                     @endphp
 
@@ -224,8 +249,7 @@
                                                 <span class="opt-text">{{ $opt->content }}</span>
                                             </div>
                                             <div class="text-right">
-                                                <span
-                                                    class="badge {{ $opt->is_correct ? 'badge-success' : 'badge-light' }} badge-lg">
+                                                <span class="badge {{ $opt->is_correct ? 'badge-success' : 'badge-light' }} badge-lg">
                                                     {{ $pct }}% ({{ $count }})
                                                 </span>
                                             </div>
@@ -233,12 +257,11 @@
                                         <div class="progress">
                                             <div class="progress-bar {{ $barClass }}" role="progressbar"
                                                 style="width: {{ $pct }}%;"
-                                                aria-valuenow="{{ $pct }}" aria-valuemin="0"
-                                                aria-valuemax="100">
-                                            </div>
+                                                aria-valuenow="{{ $pct }}" aria-valuemin="0" aria-valuemax="100"></div>
                                         </div>
                                     </div>
                                 @endforeach
+
                             @endif
                         </div>
                     </div>
@@ -264,103 +287,160 @@
 </div>
 
 @push('js')
-    <script>
-        (function() {
-            const sid = @json($gameSession->id);
-            const subKey = 'screen-' + sid;
+<script>
+(function () {
+    const sid = @json($gameSession->id);
+    const subKey = 'screen-' + sid;
+    const __warnedKeys = new Set();
+    // Evita dobles suscripciones
+    window.__panelSubs ??= {};
+    if (window.__panelSubs[subKey]) return;
+    window.__panelSubs[subKey] = true;
 
-            // Evita dobles suscripciones
-            window.__panelSubs ??= {};
-            if (window.__panelSubs[subKey]) return;
-            window.__panelSubs[subKey] = true;
+    // ===== Cronómetro (cliente, sin wire:poll) =====
+    if (!window.__screenTimers) window.__screenTimers = {};
+    (function startClock() {
+        if (window.__screenTimers[sid]) return; // ya corriendo
 
-            // ===== Cronómetro (cliente, sin wire:poll) =====
-            if (!window.__screenTimers) window.__screenTimers = {};
-            (function startClock() {
-                if (window.__screenTimers[sid]) return; // ya corriendo
+        let lastLeft = null;
+        let lastIndex = null;
 
-                let lastLeft = null;
-                let lastIndex = null;
+        function fmt(sec) {
+            sec = Math.max(0, Math.floor(sec));
+            const m = Math.floor(sec / 60).toString().padStart(2, '0');
+            const s = (sec % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
 
-                function fmt(sec) {
-                    sec = Math.max(0, Math.floor(sec));
-                    const m = Math.floor(sec / 60).toString().padStart(2, '0');
-                    const s = (sec % 60).toString().padStart(2, '0');
-                    return `${m}:${s}`;
-                }
+        function tick() {
+            const root = document.getElementById('screen-root');
+            const out  = document.getElementById('timerValue');
+            if (!root || !out) return;
 
-                function tick() {
-                    const root = document.getElementById('screen-root');
-                    const out = document.getElementById('timerValue');
-                    if (!root || !out) return;
-
-                    const finished = root.dataset.finished === '1';
-                    if (finished) {
-                        out.textContent = '--:--';
-                        return;
-                    }
-
-                    const running = root.dataset.running === '1';
-                    const paused = root.dataset.paused === '1';
-                    const dur = parseInt(root.dataset.duration || '0', 10);
-                    const idxStr = root.dataset.index || '';
-                    const started = root.dataset.started;
-
-                    // si cambió la pregunta, resetea cache
-                    if (lastIndex !== idxStr) {
-                        lastIndex = idxStr;
-                        lastLeft = null;
-                    }
-
-                    let left = dur;
-
-                    if (!running || !started) {
-                        left = dur; // muestra duración total si aún no corre
-                    } else if (paused) {
-                        if (lastLeft === null) {
-                            const t0 = Date.parse(started);
-                            const elapsed = Math.max(0, (Date.now() - t0) / 1000);
-                            left = Math.max(0, Math.round(dur - elapsed));
-                            lastLeft = left;
-                        } else {
-                            left = lastLeft; // congelado
-                        }
-                    } else {
-                        const t0 = Date.parse(started);
-                        const elapsed = Math.max(0, (Date.now() - t0) / 1000);
-                        left = Math.max(0, Math.round(dur - elapsed));
-                        lastLeft = left;
-                    }
-
-                    out.textContent = fmt(left);
-                }
-
-                window.__screenTimers[sid] = setInterval(tick, 500);
-                tick();
-            })();
-
-            // ===== Suscripción WS y refresco de estado =====
-            function bootWs() {
-                const ok = !!(window.Livewire && window.Echo);
-                const root = document.querySelector('#screen-root');
-                const compId = root && root.getAttribute('wire:id');
-                if (!ok || !compId) return setTimeout(bootWs, 100);
-
-                const call = (method) => {
-                    const comp = Livewire.find(compId);
-                    if (comp && typeof comp.call === 'function') comp.call(method);
-                };
-
-                try {
-                    window.Echo.private(`session.${sid}`)
-                        .listen('.GameSessionStateChanged', () => call('syncState'))
-                        .listen('.AnswerSubmitted', () => call('syncState'));
-                } catch (e) {
-                    window.__panelSubs[subKey] = false;
-                    setTimeout(bootWs, 400);
-                }
+            const finished = root.dataset.finished === '1';
+            if (finished) {
+                out.textContent = '--:--';
+                return;
             }
-            bootWs();
-        })();
-    </script>
+
+            const running = root.dataset.running === '1';
+            const paused  = root.dataset.paused  === '1';
+            const dur     = parseInt(root.dataset.duration || '0', 10);
+            const idxStr  = root.dataset.index || '';
+            const started = root.dataset.started;
+
+            // si cambió la pregunta, resetea cache
+            if (lastIndex !== idxStr) {
+                lastIndex = idxStr;
+                lastLeft  = null;
+            }
+
+            let left = dur;
+
+            if (!running || !started) {
+                left = dur; // duración total si aún no corre
+            } else if (paused) {
+                if (lastLeft === null) {
+                    const t0 = Date.parse(started);
+                    const elapsed = Math.max(0, (Date.now() - t0) / 1000);
+                    left = Math.max(0, Math.round(dur - elapsed));
+                    lastLeft = left;
+                } else {
+                    left = lastLeft; // congelado
+                }
+            } else {
+                const t0 = Date.parse(started);
+                const elapsed = Math.max(0, (Date.now() - t0) / 1000);
+                left = Math.max(0, Math.round(dur - elapsed));
+                lastLeft = left;
+            }
+
+            // === Aviso sonoro cuando queden 3s ===
+            try {
+                const willPlayBeep =
+                    running &&               // solo si está corriendo
+                    !paused &&               // no en pausa
+                    started &&               // con timestamp de inicio
+                    left > 0 && left <= 3;   // en la ventana de 3s
+
+                if (willPlayBeep) {
+                    const key = (idxStr || '') + '|' + (started || '');
+                    if (!__warnedKeys.has(key)) {
+                        const beep = document.getElementById('audio-warning-3s');
+                        if (beep) {
+                            // Reinicia (por si venimos de otra pregunta) y reproduce
+                            beep.currentTime = 0;
+                            beep.play().catch(() => { /* autoplay puede bloquearse si no hubo interacción */ });
+                        }
+                        __warnedKeys.add(key);
+                    }
+                }
+            } catch (_) {}
+
+            out.textContent = fmt(left);
+        }
+
+        window.__screenTimers[sid] = setInterval(tick, 500);
+        tick();
+    })();
+
+    // ===== Suscripción WS y refresco de estado =====
+    function bootWs() {
+        const ok   = !!(window.Livewire && window.Echo);
+        const root = document.querySelector('#screen-root');
+        let compId = root && root.getAttribute('wire:id');
+        // fallback por si Livewire montó el id en otro nodo
+        if (!compId) {
+            const anyRoot = document.querySelector('[wire\\:id]');
+            compId = anyRoot && anyRoot.getAttribute('wire:id');
+        }
+
+        if (!ok || !compId) return setTimeout(bootWs, 100);
+
+        const call = (method) => {
+            const comp = Livewire.find(compId);
+            if (comp && typeof comp.call === 'function') comp.call(method);
+        };
+
+        try {
+            const chan = window.Echo.private(`session.${sid}`);
+            chan
+                .listen('.GameSessionStateChanged', () => call('syncState'))
+                .listen('.AnswerSubmitted',        () => call('syncState'))
+                .listen('.GameCountdownStarted',   (e) => {
+                    const secs  = parseInt(e?.seconds || 3, 10);
+                    const phase = e?.phase || 'start'; // 'start' | 'advance'
+                    showScreenCountdown(isNaN(secs) ? 3 : secs, phase);
+                });
+        } catch (e) {
+            window.__panelSubs[subKey] = false;
+            return setTimeout(bootWs, 400);
+        }
+    }
+    bootWs();
+
+    // ===== Overlay 3-2-1 en pantalla =====
+    function showScreenCountdown(seconds, phase = 'start') {
+        const wrap  = document.getElementById('screen-countdown');
+        const num   = document.getElementById('screen-countdown-number');
+        const title = document.getElementById('screen-countdown-title');
+        if (!wrap || !num) return;
+
+        if (title) {
+            title.textContent = (phase === 'advance') ? '¡Siguiente pregunta!' : '¡Comenzamos!';
+        }
+
+        let s = Math.max(1, seconds | 0);
+        num.textContent = s;
+        wrap.classList.remove('d-none');
+
+        const t1 = setTimeout(() => { num.textContent = Math.max(1, s - 1); }, 700);
+        const t2 = setTimeout(() => { num.textContent = Math.max(1, s - 2); }, 1400);
+        const t3 = setTimeout(() => {
+            wrap.classList.add('d-none');
+            clearTimeout(t1); clearTimeout(t2);
+        }, 2100);
+    }
+})();
+</script>
 @endpush

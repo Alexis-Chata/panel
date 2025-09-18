@@ -1,5 +1,6 @@
 <div x-data
-    x-on:countdown.window="
+     x-on:countdown.window="
+        const action = ($event.detail && $event.detail.action) || 'advance';
         let el = document.getElementById('countdown-box');
         el.classList.remove('d-none');
         el.innerText = '3';
@@ -7,9 +8,13 @@
         setTimeout(()=>{ el.innerText='1'; }, 1400);
         setTimeout(()=>{
             el.classList.add('d-none');
-            Livewire.dispatch('advanceNow');
+            if (action === 'start') {
+                $wire.startNow();      // <--- llama directamente a startNow()
+            } else {
+                $wire.advanceNow();
+            }
         }, 2100);
-    ">
+     ">
     <div id="countdown-box" class="display-3 text-center d-none"
         style="position:fixed;top:30%;left:0;right:0;z-index:9999;">
     </div>
@@ -31,18 +36,47 @@
                     <button type="button" class="btn btn-outline-info" data-toggle="modal" data-target="#qrJoinModal">
                         <i class="fas fa-qrcode"></i> Mostrar QR
                     </button>
-                    <button class="btn btn-outline-primary btn-sm" wire:click="start"><i class="fas fa-play mr-1"></i>
-                        Iniciar</button>
-                    <button class="btn btn-outline-secondary btn-sm" wire:click="togglePause">
-                        {{ $gameSession->is_paused ? 'Reanudar' : 'Pausar' }}
-                    </button>
-                    <button class="btn btn-outline-info btn-sm" wire:click="revealAndPause">
-                        <i class="fas fa-lightbulb mr-1"></i> Revelar + Pausa
-                    </button>
-                    <button class="btn btn-primary btn-sm" wire:click="nextQuestion">
-                        Siguiente <i class="fas fa-arrow-right ml-1"></i>
-                    </button>
+
+                    @php
+                        $finished    = (!$gameSession->is_active && $gameSession->current_q_index >= $gameSession->questions_total);
+                        $hasStarted  = (bool) ($gameSession->is_running || !is_null($gameSession->current_q_started_at));
+                        // Si agregaste la propiedad $countdownActive en el componente:
+                        $uiStarted   = (isset($countdownActive) && $countdownActive) || $hasStarted;
+
+                        // Mostrar "Iniciar" solo antes de empezar y si no está finalizado
+                        $showStart   = (!$uiStarted && !$finished && $gameSession->current_q_index < $gameSession->questions_total);
+                    @endphp
+
+                    {{-- Al inicio: solo "Iniciar" (deshabilitado si no hay participantes) --}}
+                    @if ($showStart)
+                        <button
+                            class="btn btn-outline-primary btn-sm"
+                            wire:click="start"
+                            @if ($pCount < 1) disabled title="Esperando participantes…" @endif
+                        >
+                            <i class="fas fa-play mr-1"></i> Iniciar
+                        </button>
+                    @endif
+
+                    {{-- Tras iniciar (o durante conteo / en curso / pausa): mostrar los demás --}}
+                    @if ($uiStarted && !$finished)
+                        <button class="btn btn-outline-secondary btn-sm" wire:click="togglePause">
+                            {{ $gameSession->is_paused ? 'Reanudar' : 'Pausar' }}
+                        </button>
+
+                        {{-- Revelar + Pausa solo cuando está corriendo y no está en pausa --}}
+                        @if ($gameSession->is_running && !$gameSession->is_paused)
+                            <button class="btn btn-outline-info btn-sm" wire:click="revealAndPause">
+                                <i class="fas fa-lightbulb mr-1"></i> Revelar + Pausa
+                            </button>
+                        @endif
+
+                        <button class="btn btn-primary btn-sm" wire:click="nextQuestion">
+                            Siguiente <i class="fas fa-arrow-right ml-1"></i>
+                        </button>
+                    @endif
                 </div>
+
             </div>
 
             <hr>
