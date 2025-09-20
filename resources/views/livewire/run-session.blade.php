@@ -20,6 +20,14 @@
     </div>
 
     <div class="card">
+        {{-- Estado para timeout (RUN) --}}
+        <span id="run-state" class="d-none"
+            data-started="{{ optional($gameSession->current_q_started_at)->toIso8601String() }}"
+            data-duration="{{ (int) ($current?->timer_override ?? $gameSession->timer_default) }}"
+            data-paused="{{ $gameSession->is_paused ? 1 : 0 }}"
+            data-running="{{ $gameSession->is_running ? 1 : 0 }}"
+            data-index="{{ $gameSession->current_q_index }}">
+        </span>
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
@@ -228,6 +236,43 @@
 </div>
 @once
 @push('js')
+    <script>
+        (function () {
+            let lastKeySent = null;
+
+            function tickTimeoutRun() {
+                const el = document.getElementById('run-state');
+                if (!el) return;
+
+                const running = el.dataset.running === '1';
+                const paused  = el.dataset.paused  === '1';
+                const started = el.dataset.started;
+                const dur     = parseInt(el.dataset.duration || '0', 10);
+                const index   = el.dataset.index || '';
+
+                if (!running || paused || !started || !dur) return;
+
+                const t0 = Date.parse(started);
+                if (isNaN(t0)) return;
+
+                const elapsed = Math.max(0, (Date.now() - t0) / 1000);
+                const left    = Math.ceil(dur - elapsed);
+
+                if (left <= 0) {
+                    const key = index + '|' + started;
+                    if (lastKeySent !== key) {
+                        lastKeySent = key;
+                        // Dispara al componente Livewire (listener #[On('checkTimeout')])
+                        window.Livewire?.dispatch('checkTimeout');
+                    }
+                }
+            }
+
+            // Revisa 2x por segundo
+            setInterval(tickTimeoutRun, 500);
+        })();
+    </script>
+
     <script>
         window.addEventListener('livewire:init', () => {
             const sid = @json($gameSession->id);

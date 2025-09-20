@@ -11,9 +11,10 @@
     data-paused="{{ $gameSession->is_paused ? 1 : 0 }}" data-running="{{ $gameSession->is_running ? 1 : 0 }}"
     data-index="{{ $gameSession->current_q_index }}" data-total="{{ $gameSession->questions_total }}"
     data-finished="{{ $finished ? 1 : 0 }}">
-    <!-- Audio aviso últimos 3s -->
-    <audio id="audio-warning-3s" src="{{ asset('audio/conteo_regresivo.mp3') }}" preload="auto" playsinline></audio>
-
+    <!-- Audio aviso últimos 3s (fijado) -->
+    <audio id="audio-warning-3s" wire:ignore src="{{ asset('audio/conteo_regresivo.mp3') }}" preload="auto" playsinline></audio>
+    <!-- Audio reveal (ding) cuando se pausa para mostrar la respuesta -->
+    <audio id="audio-reveal-ding" wire:ignore src="{{ asset('audio/reveal_ding.wav') }}" preload="auto" playsinline></audio>
     <!-- Overlay de conteo para SCREEN -->
     <div id="screen-countdown"
         class="position-fixed d-none"
@@ -164,48 +165,51 @@
         {{-- PREGUNTA EN CURSO (con cronómetro y/o pausa para reveal) --}}
         <div class="container-fluid position-relative">
 
-            {{-- Cronómetro arriba a la derecha --}}
-            <div class="position-absolute" style="top:12px; right:12px;">
-                <div class="timer-chip d-inline-flex align-items-center">
-                    <span class="timer-icon mr-2"></span>
-                    <span id="timerValue" class="timer-text">--:--</span>
-                </div>
-            </div>
-
-            <div class="row justify-content-center">
-                <div class="col-12 col-lg-10 col-xl-8 text-center mb-4">
-                    <div class="q-title">
-                        <div class="ck-content">{!! $q->statement !!}</div>
+            {{-- Mostrar TIMER y ANUNCIADO solo mientras está corriendo (no en pausa) --}}
+            @if ($gameSession->is_running && !$gameSession->is_paused)
+                {{-- Cronómetro arriba a la derecha --}}
+                <div class="position-absolute" style="top:12px; right:12px;">
+                    <div class="timer-chip d-inline-flex align-items-center">
+                        <span class="timer-icon mr-2"></span>
+                        <span id="timerValue" class="timer-text">--:--</span>
                     </div>
                 </div>
-            </div>
 
-            {{-- Alternativas en 2 columnas en pantallas grandes --}}
-            <div class="row justify-content-center">
-                <div class="col-12">
-                    <div class="row">
-                        @foreach ($q->options as $opt)
-                            <div class="col-12 col-lg-6 mb-3">
-                                <div
-                                    class="opt h-100 d-flex align-items-start justify-content-between {{ $gameSession->is_paused && $opt->is_correct ? 'opt-correct' : '' }}">
-                                    <div class="d-flex">
-                                        <span class="opt-badge mr-3 text-white">{{ $opt->label }}</span>
-                                        <span class="opt-text">{{ $opt->content }}</span>
-                                    </div>
-                                    @if ($gameSession->is_paused && $opt->is_correct)
-                                        <span class="badge badge-success badge-lg align-self-center">Correcta</span>
-                                    @endif
-                                </div>
-                            </div>
-                        @endforeach
+                {{-- Anunciado --}}
+                <div class="row justify-content-center">
+                    <div class="col-12 col-lg-10 col-xl-8 text-center mb-4">
+                        <div class="q-title">
+                            <div class="ck-content">{!! $q->statement !!}</div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            @endif
 
-            {{-- ===== Resultados & Retroalimentación (solo al pausar/reveal) ===== --}}
+            {{-- Al PAUSAR: ocultar anunciado y timer. Mostrar opciones (con correcta), resultados y retro. --}}
             @if ($gameSession->is_paused)
+                {{-- Alternativas en 2 columnas con la correcta resaltada --}}
+                <div class="row justify-content-center">
+                    <div class="col-12">
+                        <div class="row">
+                            @foreach ($q->options as $opt)
+                                <div class="col-12 col-lg-6 mb-3">
+                                    <div class="opt h-100 d-flex align-items-start justify-content-between {{ $opt->is_correct ? 'opt-correct' : '' }}">
+                                        <div class="d-flex">
+                                            <span class="opt-badge mr-3 text-white">{{ $opt->label }}</span>
+                                            <span class="opt-text">{{ $opt->content }}</span>
+                                        </div>
+                                        @if ($opt->is_correct)
+                                            <span class="badge badge-success badge-lg align-self-center">Correcta</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+
                 @php
-                    // Totales y distribución por opción usando el FQN del modelo
+                    // Totales y distribución por opción
                     $total = \App\Models\Answer::where('session_question_id', $current->id)
                         ->whereNotNull('question_option_id')
                         ->count();
@@ -214,14 +218,13 @@
                         ->where('session_question_id', $current->id)
                         ->whereNotNull('question_option_id')
                         ->groupBy('question_option_id')
-                        ->pluck('c', 'question_option_id'); // -> Collection clave=option_id, valor=conteo
+                        ->pluck('c', 'question_option_id');
 
-                    // Feedback disponible
+                    // Campo de retroalimentación disponible (si hubiera)
                     $feedback = $q->feedback_html ?? ($q->feedback ?? ($q->explanation ?? null));
                 @endphp
 
-
-
+                {{-- Resultados --}}
                 <div class="row justify-content-center mt-3">
                     <div class="col-12 col-xl-10">
                         <div class="results-card">
@@ -237,8 +240,8 @@
                             @else
                                 @foreach ($q->options as $opt)
                                     @php
-                                        $count   = (int) $byOpt->get($opt->id, 0);
-                                        $pct     = $total ? round(($count * 100) / $total) : 0;
+                                        $count = (int) $byOpt->get($opt->id, 0);
+                                        $pct   = $total ? round(($count * 100) / $total) : 0;
                                         $barClass = $opt->is_correct ? 'bg-success' : 'bg-secondary';
                                     @endphp
 
@@ -257,16 +260,17 @@
                                         <div class="progress">
                                             <div class="progress-bar {{ $barClass }}" role="progressbar"
                                                 style="width: {{ $pct }}%;"
-                                                aria-valuenow="{{ $pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                                aria-valuenow="{{ $pct }}" aria-valuemin="0" aria-valuemax="100">
+                                            </div>
                                         </div>
                                     </div>
                                 @endforeach
-
                             @endif
                         </div>
                     </div>
                 </div>
 
+                {{-- Retroalimentación (si existe) --}}
                 @if ($feedback)
                     <div class="row justify-content-center mt-3">
                         <div class="col-12 col-xl-10">
@@ -291,7 +295,11 @@
 (function () {
     const sid = @json($gameSession->id);
     const subKey = 'screen-' + sid;
-    const __warnedKeys = new Set();
+    // Set global (no se pierde en re-renders)
+    window.__screenWarnedKeys ??= new Set();
+    window.__screenRevealedKeys ??= new Set();
+    // Flag global para saber si ya desbloqueamos el audio por gesto
+    window.__audioUnlocked ??= false;
     // Evita dobles suscripciones
     window.__panelSubs ??= {};
     if (window.__panelSubs[subKey]) return;
@@ -304,6 +312,7 @@
 
         let lastLeft = null;
         let lastIndex = null;
+        let lastPaused = null;
 
         function fmt(sec) {
             sec = Math.max(0, Math.floor(sec));
@@ -312,14 +321,15 @@
             return `${m}:${s}`;
         }
 
-        function tick() {
+        function tick()
+        {
             const root = document.getElementById('screen-root');
+            if (!root) return; // ← solo chequea root
             const out  = document.getElementById('timerValue');
-            if (!root || !out) return;
 
             const finished = root.dataset.finished === '1';
             if (finished) {
-                out.textContent = '--:--';
+                if (out) out.textContent = '--:--';
                 return;
             }
 
@@ -331,14 +341,33 @@
 
             // si cambió la pregunta, resetea cache
             if (lastIndex !== idxStr) {
-                lastIndex = idxStr;
-                lastLeft  = null;
+                lastIndex  = idxStr;
+                lastLeft   = null;
+                lastPaused = null; // para detectar la transición a pausa y tocar el ding
             }
 
-            let left = dur;
+            // --- DING al entrar en PAUSA (reveal) una sola vez por pregunta ---
+            try {
+                const key = (idxStr || '') + '|' + (started || '');
+                if (lastPaused !== null && lastPaused === false && paused === true) {
+                    if (!window.__screenRevealedKeys.has(key)) {
+                        const ding = document.getElementById('audio-reveal-ding');
+                        if (ding) {
+                            if (ding.paused && ding.readyState < 2) ding.load();
+                            ding.currentTime = 0;
+                            const p = ding.play();
+                            if (p && typeof p.catch === 'function') p.catch(()=>{});
+                        }
+                        window.__screenRevealedKeys.add(key);
+                    }
+                }
+                lastPaused = paused;
+            } catch (_) {}
 
+            // ---- Calcula 'left' correctamente antes de usarlo
+            let left = dur;
             if (!running || !started) {
-                left = dur; // duración total si aún no corre
+                left = dur;
             } else if (paused) {
                 if (lastLeft === null) {
                     const t0 = Date.parse(started);
@@ -346,7 +375,7 @@
                     left = Math.max(0, Math.round(dur - elapsed));
                     lastLeft = left;
                 } else {
-                    left = lastLeft; // congelado
+                    left = lastLeft;
                 }
             } else {
                 const t0 = Date.parse(started);
@@ -358,30 +387,70 @@
             // === Aviso sonoro cuando queden 3s ===
             try {
                 const willPlayBeep =
-                    running &&               // solo si está corriendo
-                    !paused &&               // no en pausa
-                    started &&               // con timestamp de inicio
-                    left > 0 && left <= 3;   // en la ventana de 3s
+                    running && !paused && started &&
+                    left > 0 && left <= 3;
 
                 if (willPlayBeep) {
                     const key = (idxStr || '') + '|' + (started || '');
-                    if (!__warnedKeys.has(key)) {
+                    if (!window.__screenWarnedKeys.has(key)) {
                         const beep = document.getElementById('audio-warning-3s');
                         if (beep) {
-                            // Reinicia (por si venimos de otra pregunta) y reproduce
+                            if (beep.paused && beep.readyState < 2) beep.load();
                             beep.currentTime = 0;
-                            beep.play().catch(() => { /* autoplay puede bloquearse si no hubo interacción */ });
+                            const playPromise = beep.play();
+                            if (playPromise && typeof playPromise.catch === 'function') {
+                                playPromise.catch(()=>{});
+                            }
                         }
-                        __warnedKeys.add(key);
+                        window.__screenWarnedKeys.add(key);
                     }
                 }
             } catch (_) {}
 
-            out.textContent = fmt(left);
+            // Pinta el tiempo sólo si existe el nodo
+            if (out) out.textContent = fmt(left);
         }
 
         window.__screenTimers[sid] = setInterval(tick, 500);
         tick();
+    })();
+
+    (function unlockAudioOnce()
+    {
+        if (window.__audioUnlocked) return;
+
+        const tryUnlock = () => {
+            const beep = document.getElementById('audio-warning-3s');
+            const ding = document.getElementById('audio-reveal-ding');
+            if (!beep && !ding) return;
+
+            // Función auxiliar para “primar” un <audio>
+            const prime = async (el) => {
+                if (!el) return;
+                try {
+                    el.muted = true;
+                    await el.play();
+                    el.pause();
+                    el.currentTime = 0;
+                    el.muted = false;
+                } catch (_) {}
+            };
+
+            Promise.resolve()
+                .then(() => prime(beep))
+                .then(() => prime(ding))
+                .finally(() => {
+                    window.__audioUnlocked = true;
+                    window.removeEventListener('pointerdown', tryUnlock);
+                    window.removeEventListener('touchstart', tryUnlock);
+                    window.removeEventListener('click', tryUnlock);
+                });
+        };
+
+        // Cualquier gesto del usuario
+        window.addEventListener('pointerdown', tryUnlock, { once: true, passive: true });
+        window.addEventListener('touchstart', tryUnlock, { once: true, passive: true });
+        window.addEventListener('click', tryUnlock, { once: true, passive: true });
     })();
 
     // ===== Suscripción WS y refresco de estado =====

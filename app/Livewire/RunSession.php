@@ -24,6 +24,36 @@ class RunSession extends Component
         $this->loadCurrent();
     }
 
+    #[On('checkTimeout')]
+    public function checkTimeout(): void
+    {
+        $this->gameSession->refresh();
+        $this->loadCurrent();
+
+        // Debe haber una pregunta corriendo y no estar en pausa
+        if (!$this->gameSession->is_running || $this->gameSession->is_paused || !$this->current) {
+            return;
+        }
+
+        $started  = $this->gameSession->current_q_started_at;
+        if (!$started) return;
+
+        // Duración (override o default)
+        $duration = (int) ($this->current->timer_override ?? $this->gameSession->timer_default);
+        if ($duration <= 0) return;
+
+        // ¿Se agotó el tiempo?
+        $elapsed = $started->diffInSeconds(now());
+        if ($elapsed < $duration) return;
+
+        // ¿NADIE respondió?
+        $answers = Answer::where('session_question_id', $this->current->id)->count();
+
+        // Revela (pausa) automáticamente
+        $this->gameSession->update(['is_paused' => true]);
+        $this->broadcastState();
+        $this->dispatch('toast', body: 'Tiempo agotado — se revela la respuesta (sin respuestas registradas)');
+    }
     // Cargar/refrescar la pregunta actual y métricas asociadas
     public function loadCurrent(): void
     {
