@@ -33,6 +33,17 @@ class UserRoleSeeder extends Seeder
             ['email' => 'estudiante@example.com'],
             ['name' => 'Estudiante', 'password' => Hash::make('password')]
         );
+
         $student->syncRoles(['Estudiante']);
+
+        $student = User::firstOrCreate(
+            ['email' => 'erika@gmail.com'],
+            ['name' => 'Erika', 'password' => Hash::make('erika')]
+        );
+
+        $student = User::firstOrCreate(
+            ['email' => 'armando@gmail.com'],
+            ['name' => 'Armando', 'password' => Hash::make('armando')]
+        );
     }
 }

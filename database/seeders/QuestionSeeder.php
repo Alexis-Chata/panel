@@ -17,55 +17,56 @@ class QuestionSeeder extends Seeder
         // =========
         // 1) LOTE BASE (15 preguntas de cultura general)
         // =========
-        $base = [
+        $base =
+        [
             [
-                'statement' => '¿Capital de Perú?',
-                'feedback'  => 'Lima es la capital y ciudad más poblada del Perú.',
-                'correct'   => 'A',
-                'A' => 'Lima',
-                'B' => 'Cusco',
-                'C' => 'Arequipa',
-                'D' => 'Trujillo',
-            ],
-            [
-                'statement' => '¿Resultado de 7 × 8?',
-                'feedback'  => '7 × 8 = 56.',
+                'statement' => '¿Cuántos Huesos tiene el ser Humano Adulto?',
+                'feedback'  => 'El cuerpo humano adulto tiene 206 huesos, ya que varios huesos que están separados al nacer se fusionan con el crecimiento.',
                 'correct'   => 'B',
-                'A' => '54',
-                'B' => '56',
-                'C' => '58',
-                'D' => '60',
+                'A' => '302',
+                'B' => '206',
+                'C' => '208',
+                'D' => '306',
             ],
             [
-                'statement' => 'El agua hierve a nivel del mar a…',
-                'feedback'  => 'A 1 atm de presión, el agua hierve a 100 °C.',
+                'statement' => '¿Cuántos Huesos tiene un bebe al nacer?',
+                'feedback'  => 'Un bebé nace con alrededor de 300 huesos, pero muchos se van uniendo con el desarrollo hasta quedar en 206 en la adultez.',
+                'correct'   => 'A',
+                'A' => '300',
+                'B' => '206',
+                'C' => '196',
+                'D' => '192',
+            ],
+            [
+                'statement' => '¿Cuántos océanos hay en el planeta tierra?',
+                'feedback'  => 'Actualmente se reconocen 5 océanos: Pacífico, Atlántico, Índico, Ártico y Antártico.',
                 'correct'   => 'C',
-                'A' => '80 °C',
-                'B' => '90 °C',
-                'C' => '100 °C',
-                'D' => '120 °C',
+                'A' => '6',
+                'B' => '4',
+                'C' => '5',
+                'D' => '7',
             ],
             [
-                'statement' => '¿Cuál es el río más largo del mundo?',
-                'feedback'  => 'Amazonas y Nilo compiten, pero hoy se acepta mayoritariamente el Amazonas.',
-                'correct'   => 'A',
-                'A' => 'Amazonas',
-                'B' => 'Nilo',
-                'C' => 'Yangtsé',
-                'D' => 'Misisipi',
-            ],
-            [
-                'statement' => '¿Quién formuló la teoría de la relatividad?',
-                'feedback'  => 'Albert Einstein publicó la relatividad especial (1905) y general (1915).',
+                'statement' => '¿Cuál es la estrella más cercana a la tierra?',
+                'feedback'  => 'El Sol es la estrella más cercana a la Tierra y la fuente principal de luz y energía para la vida.',
                 'correct'   => 'B',
-                'A' => 'Isaac Newton',
-                'B' => 'Albert Einstein',
-                'C' => 'Niels Bohr',
-                'D' => 'Galileo Galilei',
+                'A' => 'Andromeda',
+                'B' => 'Sol',
+                'C' => 'Luna',
+                'D' => 'Ninguno',
+            ],
+            [
+                'statement' => '¿Cuántos Kilos hay en una Tonelada?',
+                'feedback'  => 'Una tonelada equivale a 1.000 kilogramos.',
+                'correct'   => 'A',
+                'A' => '1.000',
+                'B' => '100',
+                'C' => '10.000',
+                'D' => '1.500',
             ],
             [
                 'statement' => '¿Cuál es el océano más grande?',
-                'feedback'  => 'El océano Pacífico es el más grande del planeta.',
+                'feedback'  => 'El océano Pacífico es el más grande del planeta, cubriendo más superficie que todos los continentes juntos.',
                 'correct'   => 'A',
                 'A' => 'Pacífico',
                 'B' => 'Atlántico',
@@ -74,7 +75,7 @@ class QuestionSeeder extends Seeder
             ],
             [
                 'statement' => '¿Cuál es el planeta más cercano al Sol?',
-                'feedback'  => 'Mercurio es el más cercano.',
+                'feedback'  => 'Mercurio es el planeta más cercano al Sol y también el más pequeño del sistema solar.',
                 'correct'   => 'D',
                 'A' => 'Venus',
                 'B' => 'Tierra',
@@ -82,17 +83,17 @@ class QuestionSeeder extends Seeder
                 'D' => 'Mercurio',
             ],
             [
-                'statement' => '¿En qué continente está Egipto?',
-                'feedback'  => 'Egipto se sitúa en África (con una pequeña porción en Asia: la península del Sinaí).',
+                'statement' => '¿Cuál es el nombre de la galaxia donde vivimos?',
+                'feedback'  => 'Vivimos en la galaxia llamada Vía Láctea, donde también se encuentra nuestro sistema solar.',
                 'correct'   => 'C',
-                'A' => 'Europa',
-                'B' => 'Oceanía',
-                'C' => 'África',
-                'D' => 'América',
+                'A' => 'Andromeda',
+                'B' => 'Pegaso',
+                'C' => 'Vía Láctea',
+                'D' => 'Osa Mayor',
             ],
             [
                 'statement' => '¿Quién pintó “La Gioconda”?',
-                'feedback'  => 'Leonardo da Vinci.',
+                'feedback'  => 'La Gioconda, también conocida como Mona Lisa, fue pintada por Leonardo da Vinci en el siglo XVI.',
                 'correct'   => 'A',
                 'A' => 'Leonardo da Vinci',
                 'B' => 'Miguel Ángel',
@@ -100,138 +101,18 @@ class QuestionSeeder extends Seeder
                 'D' => 'Botticelli',
             ],
             [
-                'statement' => '¿Cuál es el metal cuyo símbolo químico es Fe?',
-                'feedback'  => 'Fe corresponde a Hierro (Ferrum en latín).',
-                'correct'   => 'B',
-                'A' => 'Cobre',
-                'B' => 'Hierro',
-                'C' => 'Plata',
-                'D' => 'Oro',
-            ],
-            [
-                'statement' => '¿En qué país se encuentra la Torre Eiffel?',
-                'feedback'  => 'En Francia, ciudad de París.',
-                'correct'   => 'A',
-                'A' => 'Francia',
-                'B' => 'Italia',
-                'C' => 'España',
-                'D' => 'Alemania',
-            ],
-            [
-                'statement' => '¿Qué gas respiramos principalmente?',
-                'feedback'  => 'El aire está compuesto mayormente por Nitrógeno (~78%).',
-                'correct'   => 'D',
-                'A' => 'Oxígeno',
-                'B' => 'Dióxido de carbono',
-                'C' => 'Argón',
-                'D' => 'Nitrógeno',
-            ],
-            [
-                'statement' => '¿Cuál es el idioma más hablado como lengua materna?',
-                'feedback'  => 'El chino mandarín tiene más hablantes nativos.',
+                'statement' => '¿Cómo se llama el movimiento que realiza el Corazón”?',
+                'feedback'  => 'es Latido',
                 'correct'   => 'C',
-                'A' => 'Inglés',
-                'B' => 'Español',
-                'C' => 'Chino mandarín',
-                'D' => 'Hindi',
-            ],
-            [
-                'statement' => '¿Qué número es primo?',
-                'feedback'  => 'El 13 es primo.',
-                'correct'   => 'B',
-                'A' => '21',
-                'B' => '13',
-                'C' => '15',
-                'D' => '27',
-            ],
-            [
-                'statement' => '¿Cuál es la capa más externa de la Tierra?',
-                'feedback'  => 'La corteza terrestre es la capa más externa.',
-                'correct'   => 'A',
-                'A' => 'Corteza',
-                'B' => 'Manto',
-                'C' => 'Núcleo externo',
-                'D' => 'Núcleo interno',
+                'A' => 'Sistole',
+                'B' => 'Diástole',
+                'C' => 'Latido',
+                'D' => 'pam pam',
             ],
         ];
+
 
         foreach ($base as $row) {
-            $this->storeQuestion($row);
-        }
-
-        // =========
-        // 2) CAPITALES (15 preguntas generadas)
-        // =========
-        $capitals = [
-            ['Argentina', 'Buenos Aires'],
-            ['Chile', 'Santiago'],
-            ['Uruguay', 'Montevideo'],
-            ['Brasil', 'Brasilia'],
-            ['Bolivia', 'Sucre'],
-            ['Paraguay', 'Asunción'],
-            ['Colombia', 'Bogotá'],
-            ['Ecuador', 'Quito'],
-            ['Venezuela', 'Caracas'],
-            ['México', 'Ciudad de México'],
-            ['España', 'Madrid'],
-            ['Italia', 'Roma'],
-            ['Francia', 'París'],
-            ['Alemania', 'Berlín'],
-            ['Japón', 'Tokio'],
-        ];
-        $allCaps = array_map(fn($x) => $x[1], $capitals);
-
-        foreach ($capitals as [$country, $cap]) {
-            $fakeDistractors = $this->pickThreeDistinct($allCaps, $cap);
-            $row = [
-                'statement' => "¿Capital de {$country}?",
-                'feedback'  => "{$cap} es la capital de {$country}.",
-                'correct'   => 'A',
-                'A' => $cap,
-                'B' => $fakeDistractors[0],
-                'C' => $fakeDistractors[1],
-                'D' => $fakeDistractors[2],
-            ];
-            $this->storeQuestion($row);
-        }
-
-        // =========
-        // 3) ARITMÉTICA (20 preguntas  — multiplicaciones variadas)
-        // =========
-        $pairs = [
-            [3, 6],
-            [3, 7],
-            [3, 8],
-            [4, 6],
-            [4, 7],
-            [4, 8],
-            [5, 6],
-            [5, 7],
-            [5, 8],
-            [6, 6],
-            [6, 7],
-            [6, 8],
-            [7, 7],
-            [7, 8],
-            [8, 8],
-            [9, 6],
-            [9, 7],
-            [9, 8],
-            [11, 7],
-            [12, 8],
-        ];
-        foreach ($pairs as [$a, $b]) {
-            $correct = $a * $b;
-            $d = $this->nearbyDistractors($correct);
-            $row = [
-                'statement' => "¿Cuánto es {$a} × {$b}?",
-                'feedback'  => "{$a} × {$b} = {$correct}.",
-                'correct'   => 'A',
-                'A' => (string)$correct,
-                'B' => (string)$d[0],
-                'C' => (string)$d[1],
-                'D' => (string)$d[2],
-            ];
             $this->storeQuestion($row);
         }
     }

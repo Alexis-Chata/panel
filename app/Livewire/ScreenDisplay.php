@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\GameSession;
 use App\Models\SessionQuestion;
+use App\Models\SessionParticipant; // 👈 agrega esto
 use Livewire\Component;
 
 class ScreenDisplay extends Component
@@ -42,6 +43,15 @@ class ScreenDisplay extends Component
             $this->loadCurrent();
         }
 
-        return view('livewire.screen-display')->layout('layouts.fullscreen');
+        // 👇 Top 3 (score desc, tiempo asc)
+        $podium = SessionParticipant::where('game_session_id', $this->gameSession->id)
+            ->with('user:id,name')
+            ->orderByDesc('score')
+            ->orderBy('time_total_ms')
+            ->take(3)
+            ->get();
+
+        return view('livewire.screen-display', compact('podium'))
+            ->layout('layouts.fullscreen');
     }
 }

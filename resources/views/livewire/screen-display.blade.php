@@ -5,7 +5,7 @@
 @endphp
 
 
-<div id="screen-root" class="screen d-flex align-items-center justify-content-center p-4" {{-- Datos para el reloj (leídos por JS, se actualizan al re-render Livewire) --}}
+<div id="screen-root" class="screen d-flex flex-column align-items-stretch justify-content-center p-4" {{-- Datos para el reloj (leídos por JS, se actualizan al re-render Livewire) --}}
     data-started="{{ optional($gameSession->current_q_started_at)->toIso8601String() }}"
     data-duration="{{ (int) ($current?->timer_override ?? $gameSession->timer_default) }}"
     data-paused="{{ $gameSession->is_paused ? 1 : 0 }}" data-running="{{ $gameSession->is_running ? 1 : 0 }}"
@@ -142,8 +142,9 @@
 
     {{-- ======= PRIORIDAD DE ESTADOS ======= --}}
     @if ($finished)
-        {{-- FINALIZADO --}}
-        <div class="text-center w-100">
+    <div class="container-fluid w-100 px-0">   {{-- 👈 nuevo wrapper --}}
+
+        <div class="text-center w-100 mb-3">
             <span class="badge badge-secondary mb-2 q-index small text-uppercase">
                 Q #{{ min($gameSession->current_q_index + 1, $gameSession->questions_total) }} /
                 {{ $gameSession->questions_total }}
@@ -151,6 +152,53 @@
             <div class="q-title mb-1">¡Partida finalizada!</div>
             <div class="muted">Gracias por participar.</div>
         </div>
+
+        {{-- === PODIO FINAL === --}}
+        @if(isset($podium) && $podium->count() > 0)
+            @php
+                $medal = fn($i) => match($i){0=>'🥇',1=>'🥈',2=>'🥉',default=>'🏅'};
+            @endphp
+
+            <div class="row justify-content-center g-3 w-100 mx-0">  {{-- 👈 w-100 + mx-0 --}}
+                <div class="col-12 col-xl-10">
+                    <div class="results-card">
+                        <h5 class="mb-3">Podio final</h5>
+                        <div class="row">
+                            @foreach($podium as $i => $p)
+                                <div class="col-12 col-md-4 mb-3">
+                                    <div class="opt h-100 d-flex flex-column align-items-center justify-content-center text-center {{ $i === 0 ? 'podium-first' : '' }}"
+                                         style="border-width:3px;">
+                                        <div class="display-4 mb-2">{{ $medal($i) }}</div>
+                                        <div class="font-weight-bold" style="font-size:clamp(18px,3vh,28px);">
+                                            {{ $p->nickname ?? $p->user?->name ?? 'Jugador' }}
+                                        </div>
+                                        <div class="mt-2">
+                                            <span class="badge badge-success badge-lg">Puntaje: {{ $p->score }}</span>
+                                        </div>
+                                        <div class="mt-1">
+                                            <span class="badge badge-dark badge-lg">
+                                                Tiempo: {{ number_format(($p->time_total_ms ?? 0) / 1000, 2) }}s
+                                            </span>
+                                        </div>
+                                        <div class="mt-2 text-muted small">
+                                            {{ $i === 0 ? '1.º lugar' : ($i === 1 ? '2.º lugar' : '3.º lugar') }}
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="text-center mt-2">
+                            <a href="{{ route('winners', ['gameSession' => $gameSession->id]) }}"
+                               class="btn btn-primary btn-sm" target="_blank">
+                                Ver ranking completo
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+    </div> {{-- /container-fluid --}}
     @elseif (!$gameSession->is_running || !$current || !$q)
         {{-- MODO ESPERA (no iniciado) --}}
         <div class="text-center w-100">
