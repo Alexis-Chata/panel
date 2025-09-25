@@ -37,13 +37,59 @@ class UserRoleSeeder extends Seeder
         $student->syncRoles(['Estudiante']);
 
         $student = User::firstOrCreate(
-            ['email' => 'erika@gmail.com'],
-            ['name' => 'Erika', 'password' => Hash::make('erika')]
+            ['email' => '71878601@gmail.com'],
+            ['name' => 'Frank Supo', 'password' => Hash::make('71878601')]
+        );
+
+        $student = User::firstOrCreate(
+            ['email' => '75653249@gmail.com'],
+            ['name' => 'Giovany Alejo', 'password' => Hash::make('75653249')]
+        );
+
+        $student = User::firstOrCreate(
+            ['email' => '72186496@gmail.com'],
+            ['name' => 'Sofia Huanaco', 'password' => Hash::make('72186496')]
+        );
+
+        $student = User::firstOrCreate(
+            ['email' => '60840799@gmail.com'],
+            ['name' => 'Engie Soto', 'password' => Hash::make('60840799')]
+        );
+
+        $student = User::firstOrCreate(
+            ['email' => '61244254@gmail.com'],
+            ['name' => 'Marlith Hilari', 'password' => Hash::make('61244254')]
+        );
+
+        $student = User::firstOrCreate(
+            ['email' => 'anonimo@gmail.com'],
+            ['name' => 'Milagros Calcina', 'password' => Hash::make('milagros')]
         );
 
         $student = User::firstOrCreate(
             ['email' => 'armando@gmail.com'],
             ['name' => 'Armando', 'password' => Hash::make('armando')]
         );
+
+        $student = User::firstOrCreate(
+            ['email' => 'carlos@gmail.com'],
+            ['name' => 'Carlos', 'password' => Hash::make('carlos')]
+        );
+
+        $student = User::firstOrCreate(
+            ['email' => 'israel@gmail.com'],
+            ['name' => 'israel', 'password' => Hash::make('israel')]
+        );
+
+        $student = User::firstOrCreate(
+            ['email' => 'mirian@gmail.com'],
+            ['name' => 'mirian', 'password' => Hash::make('mirian')]
+        );
+
+        $student = User::firstOrCreate(
+            ['email' => 'ebelyn@gmail.com'],
+            ['name' => 'ebelyn', 'password' => Hash::make('ebelyn')]
+        );
+
     }
 }
