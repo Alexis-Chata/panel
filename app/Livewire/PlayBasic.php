@@ -50,6 +50,10 @@ class PlayBasic extends Component
                 ->where('session_question_id', $this->current->id)->first();
 
             $this->answered_option_id = $ans?->question_option_id;
+            $this->answered_any       = (bool) $ans; // 👈 clave para short
+        } else {
+            $this->answered_option_id = null;
+            $this->answered_any       = false;
         }
     }
 
@@ -130,6 +134,7 @@ class PlayBasic extends Component
         ]);
 
         $this->answered_option_id = $optionId;
+        $this->answered_any = true;
 
         $pCount = SessionParticipant::where('game_session_id', $this->gameSession->id)->count();
         $aCount = Answer::where('session_question_id', $this->current->id)->count();
@@ -159,6 +164,70 @@ class PlayBasic extends Component
     public function refreshStats($payload = null)
     {
         $this->gameSession->refresh();
+    }
+
+    // Propiedad
+    public string $respuesta = '';
+    public bool $answered_any = false;
+
+    // Enviar
+    // D) enviarRespuestaCorta(): marca respondido para short
+    public function enviarRespuestaCorta(): void
+    {
+        if (!$this->gameSession->is_running || $this->gameSession->is_paused) return;
+
+        $this->validate(['respuesta' => 'required|string|max:255']);
+
+        // Evitar doble respuesta
+        $exists = Answer::where('session_participant_id', $this->me->id)
+            ->where('session_question_id', $this->current->id)->exists();
+        if ($exists) return;
+
+        $q = $this->current->question;
+        $r = $q->evaluateShort($this->respuesta); // ['ok'=>bool,'score'=>0..1,'matched'=>id|null]
+
+        // calcula tiempo igual que en answer() …
+        $timerSec = (int) ($this->current->timer_override ?? $this->gameSession->timer_default);
+        $startAt  = $this->gameSession->current_q_started_at;
+        $elapsedSec = $startAt ? max(0, $startAt->diffInRealSeconds(now(), false)) : 0;
+        $serverElapsedMs = (int) min($timerSec * 1000, $elapsedSec * 1000);
+
+        Answer::create([
+            'session_participant_id' => $this->me->id,
+            'session_question_id'    => $this->current->id,
+            'question_option_id'     => null,
+            'is_correct'             => $r['ok'],
+            'time_ms'                => $serverElapsedMs,
+            'answered_at'            => now(),
+            'text'                   => $this->respuesta,
+            'matched_id'             => $r['matched'],
+            'score'                  => $r['score'],
+        ]);
+
+        // Actualizar totales del participante (siguiendo tu lógica actual)
+        $sum = Answer::where('session_participant_id', $this->me->id);
+        $this->me->update([
+            'score'         => (clone $sum)->where('is_correct', true)->count(),
+            'time_total_ms' => (clone $sum)->sum('time_ms'),
+        ]);
+
+        $this->answered_any = true;
+        $this->answered_option_id = null; // para short no aplica
+        $this->dispatch('respuesta_guardada', correcto: $r['ok'], puntaje: $r['score']);
+        $this->respuesta = '';
+
+        // pausa si todos respondieron (igual que en answer())
+        $pCount = \App\Models\SessionParticipant::where('game_session_id', $this->gameSession->id)->count();
+        $aCount = \App\Models\Answer::where('session_question_id', $this->current->id)->count();
+        if ($aCount >= $pCount) {
+            $this->gameSession->update(['is_paused' => true]);
+            \App\Events\GameSessionStateChanged::dispatch($this->gameSession->id, [
+                'is_running' => true,
+                'is_paused'  => true,
+                'current_q_index' => $this->gameSession->current_q_index,
+                'current_q_started_at' => optional($this->gameSession->current_q_started_at)?->toIso8601String(),
+            ]);
+        }
     }
 
     public function render()

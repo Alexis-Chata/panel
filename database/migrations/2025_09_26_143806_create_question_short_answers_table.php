@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('questions', function (Blueprint $table) {
+        Schema::create('question_short_answers', function (Blueprint $table) {
             $table->id();
-            $table->longText('statement');
-            $table->longText('feedback')->nullable();
-            $table->enum('qtype', ['multiple', 'short'])->default('multiple');
-            $table->json('meta')->nullable(); // { short_answer: {case_sensitive: false, strip_accents: true, max_distance: 0..3} }
+            $table->foreignId('question_id')->constrained()->cascadeOnDelete();
+            $table->string('text');
+            $table->unsignedTinyInteger('weight')->default(100); // % puntaje
             $table->timestamps();
         });
     }
@@ -26,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('questions');
+        Schema::dropIfExists('question_short_answers');
     }
 };

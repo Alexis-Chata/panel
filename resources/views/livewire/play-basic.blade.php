@@ -2,7 +2,7 @@
     $timer = $current ? $current->timer_override ?? $gameSession->timer_default : 0;
 @endphp
 
-<div>
+<div id="play-basic-root">
     {{-- 1) No hay pregunta actual --}}
     @if (!$current)
         <div class="card">
@@ -64,14 +64,15 @@
                 </div>
             </div>
         </div>
-        {{-- 3) La partida está corriendo: pregunta + cronómetro sincronizado con servidor --}}
+
+        {{-- 3) La partida está corriendo --}}
     @else
         <div wire:key="q-{{ $gameSession->id }}-{{ $gameSession->current_q_index }}-{{ optional($gameSession->current_q_started_at)->timestamp ?? 'none' }}"
             data-card-timer="{{ $gameSession->id }}:{{ $gameSession->current_q_index }}"
             data-total="{{ (int) $timer }}" data-left="{{ $secondsLeft }}"
             data-running="{{ $gameSession->is_running ? 'true' : 'false' }}"
             data-paused="{{ $gameSession->is_paused ? 'true' : 'false' }}"
-            data-answered="{{ $answered_option_id ? 'true' : 'false' }}"
+            data-answered="{{ $answered_any ? 'true' : 'false' }}"
             class="card question-card card-lift card-lift--dark">
 
             <div class="card-body">
@@ -87,7 +88,7 @@
                     </span>
                 </div>
 
-                {{-- Barra de tiempo ligada a Alpine --}}
+                {{-- Barra de tiempo --}}
                 <div class="progress timebar mb-3" aria-label="Tiempo restante">
                     <div class="progress-bar" role="progressbar"
                         style="width: {{ (int) $timer > 0 ? round(($secondsLeft / max($timer, 1)) * 100) : 0 }}%"
@@ -99,46 +100,58 @@
                     <h5 class="mb-3">{{ $current->question->statement }}</h5>
                 @endif
 
-                {{-- Alternativas como cards --}}
-                <div class="options-wrap">
-                    @foreach ($current->question->options->sortBy('opt_order') as $opt)
-                        @php
-                            $isSelected = $answered_option_id === $opt->id;
-                            $isCorrect = (bool) $opt->is_correct;
-                            $showCorrect = $gameSession->is_paused && $isCorrect;
-                            $showWrong = $gameSession->is_paused && $isSelected && !$isCorrect;
-                        @endphp
+                {{-- Alternativas (solo si no es short) --}}
+                @if ($current->question->qtype !== 'short')
+                    <div class="options-wrap">
+                        @foreach ($current->question->options->sortBy('opt_order') as $opt)
+                            @php
+                                $isSelected = $answered_option_id === $opt->id;
+                                $isCorrect = (bool) $opt->is_correct;
+                                $showCorrect = $gameSession->is_paused && $isCorrect;
+                                $showWrong = $gameSession->is_paused && $isSelected && !$isCorrect;
+                            @endphp
 
-                        <button
-                            class="option-card list-group-item list-group-item-action d-flex align-items-center
-                            {{ $isSelected ? 'selected' : '' }}
-                            {{ $showCorrect ? 'is-correct' : '' }}
-                            {{ $showWrong ? 'is-wrong' : '' }}"
-                            wire:click="answer({{ $opt->id }}, 0)" wire:loading.attr="disabled"
-                            wire:target="answer">
-                            <span class="option-bubble mr-3">{{ $opt->label }}</span>
-                            <span class="option-text flex-fill text-left">{{ $opt->content }}</span>
+                            <button
+                                class="option-card list-group-item list-group-item-action d-flex align-items-center
+                                {{ $isSelected ? 'selected' : '' }}
+                                {{ $showCorrect ? 'is-correct' : '' }}
+                                {{ $showWrong ? 'is-wrong' : '' }}"
+                                wire:click="answer({{ $opt->id }}, 0)" wire:loading.attr="disabled"
+                                wire:target="answer">
+                                <span class="option-bubble mr-3">{{ $opt->label }}</span>
+                                <span class="option-text flex-fill text-left">{{ $opt->content }}</span>
 
-                            {{-- Estado visual a la derecha --}}
-                            @if ($showCorrect)
-                                <span class="right-pill">
-                                    <i class="fas fa-check"></i>
-                                </span>
-                            @elseif ($showWrong)
-                                <span class="right-pill wrong">
-                                    <i class="fas fa-times"></i>
-                                </span>
-                            @elseif ($isSelected)
-                                <span class="right-pill neutral">
-                                    <i class="fas fa-dot-circle"></i>
-                                </span>
-                            @endif
-                        </button>
-                    @endforeach
-                </div>
+                                {{-- Estado visual derecha --}}
+                                @if ($showCorrect)
+                                    <span class="right-pill"><i class="fas fa-check"></i></span>
+                                @elseif ($showWrong)
+                                    <span class="right-pill wrong"><i class="fas fa-times"></i></span>
+                                @elseif ($isSelected)
+                                    <span class="right-pill neutral"><i class="fas fa-dot-circle"></i></span>
+                                @endif
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
 
-                {{-- Feedback y estados inferiores --}}
-                @if ($answered_option_id && $gameSession->is_paused)
+                {{-- Respuesta corta --}}
+                @if ($current->question->qtype === 'short')
+                    <div class="input-group">
+                        <input class="form-control" placeholder="Escribe tu respuesta" wire:model.defer="respuesta"
+                            wire:keydown.enter="enviarRespuestaCorta">
+                        <div class="input-group-append">
+                            <button class="btn btn-primary" wire:click="enviarRespuestaCorta"
+                                wire:loading.attr="disabled">
+                                Enviar
+                            </button>
+                        </div>
+                    </div>
+                @endif
+
+                {{-- Feedback y estados inferiores (usa answered_any) --}}
+                @php $hasAnswered = $answered_any; @endphp
+
+                @if ($hasAnswered && $gameSession->is_paused)
                     @if ($current->feedback_override ?? $current->question->feedback)
                         <div class="alert alert-info mt-3">
                             {!! nl2br(e($current->feedback_override ?? $current->question->feedback)) !!}
@@ -146,7 +159,7 @@
                     @endif
                 @endif
 
-                @if ($answered_option_id && !$gameSession->is_paused)
+                @if ($hasAnswered && !$gameSession->is_paused)
                     <div class="alert alert-secondary mt-3 mb-0">
                         Respuesta registrada. Espera a que finalicen todos…
                     </div>
@@ -159,17 +172,14 @@
 @push('js')
     <script>
         (function() {
-            const sid = @json($gameSession->id); // id real de la sesión
+            const sid = @json($gameSession->id);
             const key = 'play-auto-' + sid;
 
-            // Evita doble suscripción entre navegaciones/livewire
             window.__panelSubs ??= {};
             if (window.__panelSubs[key]) return;
             window.__panelSubs[key] = true;
 
-            // Espera a que Livewire, Echo y el componente estén listos
             function getCompId() {
-                // Prioriza el root marcado
                 const root = document.querySelector('#play-basic-root[wire\\:id]') ||
                     document.querySelector('#play-basic-root [wire\\:id]');
                 const any = root || document.querySelector('[wire\\:id]');
@@ -191,12 +201,11 @@
                     window.Echo.private(`session.${sid}`)
                         .listen('.GameSessionStateChanged', () => callSafe('syncState'))
                         .listen('.AnswerSubmitted', () => callSafe('refreshStats'))
-                        // ▼ Opcional si emites estos eventos al unirse/salir
                         .listen('.ParticipantJoined', () => callSafe('refreshRoster'))
                         .listen('.ParticipantLeft', () => callSafe('refreshRoster'));
                 } catch (e) {
                     console.warn('Suscripción WS falló, reintentando...', e);
-                    window.__panelSubs[key] = false; // permite reintento
+                    window.__panelSubs[key] = false;
                     setTimeout(boot, 300);
                     return;
                 }
@@ -205,7 +214,6 @@
     </script>
     <script>
         (function() {
-            // Busca y engancha a TODOS los cards que existan o aparezcan
             function initAllTimers() {
                 document.querySelectorAll('[data-card-timer]').forEach((card) => initTimerFor(card));
             }
@@ -229,7 +237,6 @@
             }
 
             function initTimerFor(card) {
-                // Evita doble binding por elemento
                 if (card.__timerBound) return;
                 card.__timerBound = true;
 
@@ -259,7 +266,7 @@
                         state.seconds--;
                         render();
                         if (state.seconds <= 0 && !state.answered) {
-                            // Auto-responder al vencer tiempo (opcional)
+                            // Auto-responder al vencer tiempo (registra "sin respuesta")
                             callWire('answer', null, 0);
                             state.answered = true;
                             stop();
@@ -291,7 +298,6 @@
                     state.total = Number.isNaN(total) ? state.total : total;
 
                     if (!Number.isNaN(left)) {
-                        // Solo baja para evitar saltos
                         if (Number.isNaN(state.seconds) || left < state.seconds) state.seconds = left;
                     }
 
@@ -304,14 +310,14 @@
                 render();
                 if (state.seconds > 0 && state.running) start();
 
-                // Observa cambios de atributos del card (Livewire los muta)
+                // Observa cambios de atributos
                 const attrObs = new MutationObserver(syncFromAttrs);
                 attrObs.observe(card, {
                     attributes: true,
                     attributeFilter: ['data-left', 'data-running', 'data-paused', 'data-answered', 'data-total']
                 });
 
-                // Limpia cuando el card sea removido del DOM (al cambiar de pregunta)
+                // Limpieza al remover el card
                 const removalObs = new MutationObserver(() => {
                     if (!document.body.contains(card)) {
                         stop();
@@ -324,14 +330,10 @@
                     subtree: true
                 });
 
-                // Útil para depurar
                 card.__timerState = state;
             }
 
-            // 1) Inicializa lo que ya está en el DOM
             initAllTimers();
-
-            // 2) Re-engancha automáticamente cuando Livewire reemplace el DOM
             const bodyObs = new MutationObserver(() => initAllTimers());
             bodyObs.observe(document.body, {
                 childList: true,
