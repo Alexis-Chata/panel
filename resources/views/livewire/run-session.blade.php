@@ -70,8 +70,16 @@
                     @if ($uiStarted && !$finished)
                         <button class="btn btn-outline-secondary btn-sm" wire:click="togglePause">
                             {{ $gameSession->is_paused ? 'Reanudar' : 'Pausar' }}
+                        </button >
+                        <button class="btn btn-outline-success btn-sm" wire:click="extendTime(15)">
+                            +15s
                         </button>
 
+                        <button class="btn btn-outline-danger btn-sm"
+                                wire:click="reduceTime(5)"
+                                wire:confirm="¿Reducir el tiempo en 5 segundos?">
+                            −5s
+                        </button>
                         {{-- Revelar + Pausa solo cuando está corriendo y no está en pausa --}}
                         @if ($gameSession->is_running && !$gameSession->is_paused)
                             <button class="btn btn-outline-info btn-sm" wire:click="revealAndPause">

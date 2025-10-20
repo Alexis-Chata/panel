@@ -24,6 +24,74 @@ class RunSession extends Component
         $this->loadCurrent();
     }
 
+    public function extendTime(int $seconds = 15): void
+    {
+        $this->gameSession->refresh();
+        $this->loadCurrent();
+
+        if (!$this->gameSession->is_running || $this->gameSession->is_paused || !$this->current) {
+            $this->dispatch('toast', body: 'No hay una pregunta corriendo para ajustar tiempo.');
+            return;
+        }
+
+        $started = $this->gameSession->current_q_started_at;
+        if (!$started) {
+            $this->dispatch('toast', body: 'El cronómetro aún no ha iniciado.');
+            return;
+        }
+
+        $duration = (int) ($this->current->timer_override ?? $this->gameSession->timer_default);
+        $elapsed  = $started->diffInSeconds(now());
+        // Permitir incluso si ya estaba por expirar: simplemente ampliamos la duración total
+        $newDuration = max(5, $duration + max(1, $seconds));
+
+        $this->current->update(['timer_override' => $newDuration]);
+
+        $this->loadCurrent();   // para que la vista actualice data-duration
+        $this->broadcastState(); // notifica a pantallas/clients
+        $left = max(0, $newDuration - $elapsed);
+        $this->dispatch('toast', body: "Tiempo extendido. Restan ~{$left}s");
+    }
+
+    public function reduceTime(int $seconds = 5): void
+    {
+        $this->gameSession->refresh();
+        $this->loadCurrent();
+
+        if (!$this->gameSession->is_running || $this->gameSession->is_paused || !$this->current) {
+            $this->dispatch('toast', body: 'No hay una pregunta corriendo para ajustar tiempo.');
+            return;
+        }
+
+        $started = $this->gameSession->current_q_started_at;
+        if (!$started) {
+            $this->dispatch('toast', body: 'El cronómetro aún no ha iniciado.');
+            return;
+        }
+
+        $duration = (int) ($this->current->timer_override ?? $this->gameSession->timer_default);
+        $elapsed  = $started->diffInSeconds(now());
+        $left     = $duration - $elapsed;
+
+        // Regla: si quedan ≤ 5s ya no se puede reducir
+        if ($left <= 5) {
+            $this->dispatch('toast', body: 'Quedan 5 segundos o menos — ya no se puede reducir el tiempo.');
+            return;
+        }
+
+        // Reducimos pero garantizando al menos 5s restantes
+        $reduceBy    = max(1, $seconds);
+        $newDuration = max($elapsed + 5, $duration - $reduceBy);
+
+        $this->current->update(['timer_override' => $newDuration]);
+
+        $this->loadCurrent();
+        $this->broadcastState();
+        $newLeft = max(0, $newDuration - $elapsed);
+        $this->dispatch('toast', body: "Tiempo reducido. Restan ~{$newLeft}s");
+    }
+
+
     #[On('checkTimeout')]
     public function checkTimeout(): void
     {
@@ -277,13 +345,16 @@ class RunSession extends Component
     private function broadcastState(): void
     {
         $s = $this->gameSession->fresh();
+        $duration = (int) ($this->current?->timer_override ?? $s->timer_default);
+
         GameSessionStateChanged::dispatch($s->id, [
-            'is_active'  => $s->is_active,
-            'is_running' => $s->is_running,
-            'is_paused' => $s->is_paused,
-            'current_q_index' => $s->current_q_index,
-            'current_q_started_at' => optional($s->current_q_started_at)?->toIso8601String(),
-            'questions_total' => $s->questions_total, // <- útil en el cliente
+            'is_active'             => $s->is_active,
+            'is_running'            => $s->is_running,
+            'is_paused'             => $s->is_paused,
+            'current_q_index'       => $s->current_q_index,
+            'current_q_started_at'  => optional($s->current_q_started_at)?->toIso8601String(),
+            'questions_total'       => $s->questions_total,
+            'duration'              => $duration, // <- extra; tu cliente puede ignorarlo si no lo usa
         ]);
     }
 

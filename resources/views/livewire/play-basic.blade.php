@@ -298,8 +298,17 @@
                     state.total = Number.isNaN(total) ? state.total : total;
 
                     if (!Number.isNaN(left)) {
-                        if (Number.isNaN(state.seconds) || left < state.seconds) state.seconds = left;
+                        // Adoptar SIEMPRE el valor que viene del servidor (suba o baje)
+                        if (Number.isNaN(state.seconds) || left !== state.seconds) {
+                            state.seconds = left;
+                        }
                     }
+
+                    // Si cambió el total, fuerza re-cálculo de la barra
+                    if (!Number.isNaN(total) && total !== state.total) {
+                        state.total = total;
+                    }
+
 
                     if (state.running && !state.int) start();
                     if (!state.running && state.int) stop();
