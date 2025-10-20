@@ -34,7 +34,18 @@
                     </td>
                     <td>{{ $s->title }}</td>
                     <td class="text-center">
-                    {!! $s->is_active ? '<span class="badge badge-success">Sí</span>' : '<span class="text-muted">No</span>' !!}
+                        @php
+                            $active = (bool) $s->is_active;
+                            $label  = $active ? 'Sí' : 'No';
+                            $class  = $active ? 'badge-success' : 'badge-secondary';
+                            $next   = $active ? 'desactivar' : 'activar';
+                        @endphp
+                        <span role="button"
+                                class="badge {{ $class }}"
+                                wire:click="toggleActive({{ $s->id }})"
+                                wire:confirm="¿Deseas {{ $next }} la partida {{ $s->code }}?">
+                            {{ $label }}
+                        </span>
                     </td>
                     <td class="text-center">
                     {!! $s->is_running ? '<span class="badge badge-info">Sí</span>' : '<span class="text-muted">No</span>' !!}
@@ -58,22 +69,22 @@
                     </span>
                     </td>
 
-
                     <td class="text-nowrap">
-                    <button class="btn btn-sm {{ $s->is_active ? 'btn-warning' : 'btn-outline-success' }}"
-                            wire:click="toggleActive({{ $s->id }})">
-                        {{ $s->is_active ? 'Desactivar' : 'Activar' }}
-                    </button>
+                        {{-- Editar: abre el mismo modal con datos cargados --}}
+                        <button class="btn btn-sm btn-outline-primary"
+                                data-toggle="modal" data-target="#gameSessionModal"
+                                wire:click="editar({{ $s->id }})">
+                            Editar
+                        </button>
+                        <button class="btn btn-sm btn-primary" wire:click="run({{ $s->id }})">
+                            Ejecutar
+                        </button>
 
-                    <button class="btn btn-sm btn-primary" wire:click="run({{ $s->id }})">
-                        Ejecutar
-                    </button>
-
-                    <button class="btn btn-sm btn-outline-danger"
-                            wire:click="endSession({{ $s->id }})"
-                            wire:confirm="¿Cerrar la partida {{ $s->code }}?">
-                        Cerrar
-                    </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                wire:click="endSession({{ $s->id }})"
+                                wire:confirm="¿Cerrar la partida {{ $s->code }}?">
+                            Cerrar
+                        </button>
                     </td>
                 </tr>
                 @endforeach

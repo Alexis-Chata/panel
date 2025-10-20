@@ -2,11 +2,13 @@
 
 namespace App\Livewire\Forms;
 
+use App\Models\Archivo;
 use App\Models\GameSession;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Form;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class GameSessionForm extends Form
 {
@@ -166,5 +168,46 @@ class GameSessionForm extends Form
         } while (GameSession::where('code', $candidate)->exists());
 
         return $candidate;
+    }
+
+    public function deleteArchivo(Archivo $archivo): array
+    {
+
+        if (! $this->gameSession?->id || $archivo->game_session_id !== $this->gameSession->id) {
+            return ['status' => 'error', 'message' => 'Archivo inválido.'];
+        }
+
+        // borrar archivo físico (guardamos 'storage/...' en url)
+        $path = str_replace('storage/', '', $archivo->url);
+        try {
+            Storage::disk('public')->delete($path);
+        } catch (\Throwable $e) {
+            // si no existe físicamente, continuamos con el borrado lógico
+        }
+
+        $archivo->delete();
+        // refrescar la relación para la vista
+        $this->gameSession->refresh();
+
+        return ['status' => 'success', 'message' => 'Archivo eliminado.'];
+    }
+    public function attachFiles(array $files): void
+    {
+        if (! $this->gameSession?->id) return;
+
+        foreach ($files as $file)
+        {
+            // Guarda en: storage/app/public/game_sessions/{id}/
+            $path = $file->storeAs(
+                "game_sessions/{$this->gameSession->id}",
+                time() . '-' . preg_replace('/\s+/', '_', $file->getClientOriginalName()),
+                'public'
+            );
+
+            Archivo::create([
+                'game_session_id' => $this->gameSession->id,
+                'url'             => 'storage/' . $path, // para usar con asset() o directamente
+            ]);
+        }
     }
 }

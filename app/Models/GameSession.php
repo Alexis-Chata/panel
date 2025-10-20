@@ -29,4 +29,10 @@ class GameSession extends Model
     {
         return $this->hasMany(SessionParticipant::class);
     }
+
+    public function archivos()
+    {
+        return $this->hasMany(Archivo::class);
+    }
+
 }

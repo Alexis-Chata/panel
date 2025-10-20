@@ -3,14 +3,18 @@
 namespace App\Livewire;
 
 use App\Livewire\Forms\GameSessionForm;
+use App\Models\Archivo;
 use App\Models\GameSession;
 use App\Models\Question;
 use App\Models\SessionQuestion;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class ManageSessions extends Component
 {
     public GameSessionForm $form;
+    public array $uploads = [];
+    use WithFileUploads;
 
     public function toggleStudentViewMode(GameSession $gameSession): void
     {
@@ -18,74 +22,110 @@ class ManageSessions extends Component
             ? 'solo_alternativas'
             : 'completo';
         $gameSession->save();
-
     }
 
     public function getNextViewModeLabel(GameSession $gameSession): string
     {
-        // Solo para construir el mensaje de confirmación en Blade (opcional)
-        return $gameSession->student_view_mode === 'full'
+        // (opcional) si lo usas en Blade
+        return $gameSession->student_view_mode === 'completo'
             ? 'Solo alternativas'
             : 'Completo';
     }
 
-
-    public function nuevo()
+    public function removeArchivo(Archivo $archivo): void
     {
-        // Defaults del form (ya están definidos en el form)
+        // delega en el Form, que ya valida pertenencia
+        $res = $this->form->deleteArchivo($archivo);
+        $this->dispatch('toast', body: $res['message'] ?? 'Actualizado');
+
+        // Mantén el modal abierto y recarga archivos reflejados
+        $this->form->gameSession?->refresh();
+    }
+
+    public function nuevo(): void
+    {
         $this->form->reset();
+        $this->uploads = [];
+    }
+
+    public function editar(GameSession $gameSession): void
+    {
+        $this->form->set($gameSession);
+        $this->uploads = [];
+        // el modal se abre desde el botón (Bootstrap), no desde backend
     }
 
     public function save_session()
     {
-        // Validación (incluye enum y rangos)
-        // Primero verifica banco de preguntas:
-        $totalAvailable = Question::count();
-        if ($totalAvailable === 0) {
-            $this->addError('form.title', 'No hay preguntas en el banco. Importa o crea algunas primero.');
-            return;
+        // Validación de archivos
+        $this->validate([
+            'uploads.*' => 'file|max:5120|mimes:pdf,jpg,jpeg,png,webp,doc,docx,ppt,pptx,zip',
+        ]);
+
+        $isEdit = (bool) $this->form->gameSession?->id;
+
+        if (! $isEdit) {
+            // Crear
+            $totalAvailable = Question::count();
+            if ($totalAvailable === 0) {
+                $this->addError('form.title', 'No hay preguntas en el banco. Importa o crea algunas primero.');
+                return;
+            }
+
+            $this->form->questions_total = min($this->form->questions_total ?? 10, $totalAvailable);
+            $this->form->store();
+            /** @var GameSession $session */
+            $session = $this->form->gameSession;
+
+            // Adjuntos (si hay)
+            if (!empty($this->uploads)) {
+                $this->form->attachFiles($this->uploads);
+            }
+
+            // Seleccionar preguntas aleatorias
+            $qs = Question::inRandomOrder()->take($this->form->questions_total)->get();
+            $payload = [];
+            foreach ($qs as $i => $q) {
+                $payload[] = [
+                    'game_session_id' => $session->id,
+                    'question_id'     => $q->id,
+                    'q_order'         => $i,
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
+                ];
+            }
+            if ($payload) {
+                SessionQuestion::insert($payload);
+            }
+
+            if ($session->questions_total != $this->form->questions_total) {
+                $session->update(['questions_total' => $this->form->questions_total]);
+            }
+
+            $msg = "Partida creada: {$session->code}";
+        } else {
+            // Editar
+            // (Opcional) puedes limitar questions_total al disponible, pero no tocamos SessionQuestions aquí
+            $this->form->update();
+
+            if (!empty($this->uploads)) {
+                $this->form->attachFiles($this->uploads); // añade nuevos adjuntos
+            }
+
+            $msg = 'Partida actualizada correctamente.';
         }
 
-        // Ajusta el total solicitado al disponible si es necesario (y al límite del schema)
-        $this->form->questions_total = min($this->form->questions_total ?? 10, $totalAvailable);
-
-        // Crea la sesión desde el Form (autogenera code si está vacío)
-        $res = $this->form->store();
-
-        /** @var GameSession $session */
-        $session = $this->form->gameSession;
-
-        // Persistimos preguntas aleatorias para la sesión
-        $qs = Question::inRandomOrder()->take($this->form->questions_total)->get();
-        $payload = [];
-        foreach ($qs as $i => $q) {
-            $payload[] = [
-                'game_session_id' => $session->id,
-                'question_id'     => $q->id,
-                'q_order'         => $i,
-                'created_at'      => now(),
-                'updated_at'      => now(),
-            ];
-        }
-        if (!empty($payload)) {
-            SessionQuestion::insert($payload);
-        }
-
-        // Asegura que el contador guardado coincida con lo seleccionado
-        if ($session->questions_total != $this->form->questions_total) {
-            $session->update(['questions_total' => $this->form->questions_total]);
-        }
-
-        // Limpia el form y cierra modal (Bootstrap client-side)
+        // Reset & cerrar modal
+        $this->uploads = [];
         $this->form->reset();
         $this->dispatch('cerrar_modal_gamesession');
 
-        session()->flash('ok', "Partida creada: {$session->code}");
+        session()->flash('ok', $msg);
     }
 
     public function toggleActive(GameSession $gameSession)
     {
-          $gameSession->update(['is_active' => !$gameSession->is_active]);
+        $gameSession->update(['is_active' => !$gameSession->is_active]);
     }
 
     public function endSession(GameSession $gameSession)

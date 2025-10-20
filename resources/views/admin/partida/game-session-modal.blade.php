@@ -49,6 +49,71 @@
               </div>
             @endif
           </div>
+          {{-- ... campos existentes del modal ... --}}
+            <div class="form-group">
+                <label>Adjuntar archivos (opcional)</label>
+                <input type="file"
+                        class="form-control-file"
+                        wire:model.live="uploads"
+                        multiple
+                        accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.ppt,.pptx,.zip">
+                @error('uploads.*') <small class="text-danger">{{ $message }}</small> @enderror
+
+                {{-- Preview simple de seleccionados --}}
+                @if (!empty($uploads))
+                    <ul class="mt-2 small">
+                    @foreach ($uploads as $u)
+                        <li>{{ $u->getClientOriginalName() }} ({{ number_format($u->getSize()/1024, 0) }} KB)</li>
+                    @endforeach
+                    </ul>
+                @endif
+
+                {{-- Progreso mientras sube --}}
+                <div wire:loading wire:target="uploads" class="small text-muted mt-1">
+                    Subiendo archivos…
+                </div>
+            </div>
+            {{-- Archivos existentes (solo al editar) --}}
+            @if ($form->gameSession?->id)
+                @php $existing = $form->gameSession->archivos()->latest()->get(); @endphp
+
+                @if ($existing->count())
+                    <hr>
+                    <label class="d-block">Archivos actuales</label>
+
+                    <ul class="list-group mb-2">
+                    @foreach ($existing as $file)
+                        @php
+                        $isImage = Str::of($file->url)->lower()->match('/\.(jpg|jpeg|png|webp)$/');
+                        $filename = basename($file->url);
+                        @endphp
+
+                        <li class="list-group-item d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            @if ($isImage)
+                            <img src="{{ asset($file->url) }}" alt="adjunto" style="width:48px;height:48px;object-fit:cover" class="rounded mr-2">
+                            @else
+                            <i class="far fa-file mr-2"></i>
+                            @endif
+                            <a href="{{ asset($file->url) }}" target="_blank" class="text-truncate" style="max-width:260px;">
+                            {{ $filename }}
+                            </a>
+                        </div>
+
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger"
+                                wire:click="removeArchivo({{ $file->id }})"
+                                wire:confirm="¿Eliminar el archivo '{{ $filename }}'?"
+                                wire:target="removeArchivo({{ $file->id }})"
+                                wire:loading.attr="disabled">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        </li>
+                    @endforeach
+                    </ul>
+                @endif
+            @endif
+
         </div>
 
         <div class="modal-footer">
