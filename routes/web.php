@@ -23,15 +23,8 @@ use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Route;
 use Maatwebsite\Excel\Facades\Excel;
 
-Route::get('/welcome', function () {
-    return view('welcome');
-})->name('home');
-
-Route::get('/ping', function () {
-    TestEvent::dispatch(['ok' => now()->toDateTimeString()]);
-    event(new PingTest('hola desde /ping'));
-    return 'ok';
-});
+Route::get('/welcome', function () {return view('welcome');})->name('home');
+Route::get('/ping', function () {TestEvent::dispatch(['ok' => now()->toDateTimeString()]);event(new PingTest('hola desde /ping'));return 'ok';});
 
 Route::middleware([
     'auth:sanctum',

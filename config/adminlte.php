@@ -30,7 +30,7 @@ return [
     |
     */
 
-    'use_ico_only' => false,
+    'use_ico_only' => true,
     'use_full_favicon' => false,
 
     /*
@@ -110,7 +110,7 @@ return [
     */
 
     'preloader' => [
-        'enabled' => false,
+        'enabled' => true,
         'mode' => 'fullscreen',
         'img' => [
             'path' => 'vendor/adminlte/dist/img/AdminLTELogo.png',
@@ -374,7 +374,21 @@ return [
             'icon'  => 'fas fa-question-circle',
             'can'   => 'questions.manage', // nuevo permiso
         ],
-
+        ['header' => 'OPCIONES GENERALES'],
+        [
+                'text'    => 'Configuraciones',
+                'icon'    => 'fas fa-cogs',
+                'can' => 'admin.configuracion.titulo',
+                'submenu' =>
+                [
+                    [
+                        'text' => 'Ajustes de Sistemas',
+                        'icon'    => 'fas fa-cog',
+                        'route'  => 'admin.configuracion.index',
+                        'can'  => 'admin.configuracion.titulo',
+                    ],
+                ],
+        ],
         // Puedes añadir más secciones/links según crezca el proyecto.
     ],
 

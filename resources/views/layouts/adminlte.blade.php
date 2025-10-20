@@ -7,7 +7,13 @@
 {{-- (Opcional) encabezado de contenido con el mismo título --}}
 @section('content_header')
     @isset($header)
-        <h1 class="mb-2">{{ $header }}</h1>
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                 <h1 class="mb-2">{{ $header }}</h1>
+            </div>
+        </div>
+    </div>
     @endisset
 @endsection
 

@@ -18,7 +18,7 @@ return new class extends Migration
             $table->enum('phase_mode', ['basic'])->default('basic');
             $table->unsignedTinyInteger('questions_total')->default(10);
             $table->unsignedSmallInteger('timer_default')->default(30);
-            $table->enum('student_view_mode', ['choices_only','full'])->default('full');
+            $table->enum('student_view_mode', ['solo_alternativas','completo'])->default('completo');
             $table->boolean('is_active')->default(false);
             $table->boolean('is_running')->default(false);
             $table->unsignedSmallInteger('current_q_index')->default(0);

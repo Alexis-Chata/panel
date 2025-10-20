@@ -23,7 +23,7 @@ class DemoGameSeeder extends Seeder
             'phase_mode' => 'basic',
             'questions_total' => $total,
             'timer_default' => 25,
-            'student_view_mode' => 'choices_only', // choices_only, full
+            'student_view_mode' => 'solo_alternativas', // choices_only, full
             'is_active' => true,
             'is_running' => false,
             'current_q_index' => 0,

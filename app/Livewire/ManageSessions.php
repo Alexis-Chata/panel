@@ -2,84 +2,98 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Forms\GameSessionForm;
 use App\Models\GameSession;
 use App\Models\Question;
 use App\Models\SessionQuestion;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 class ManageSessions extends Component
 {
-    public $title = '';
-    public $questions_total = 10;
-    public $timer_default = 30;
-    public $student_view_mode = 'full'; // full | choices_only
+    public GameSessionForm $form;
 
-    protected function rules()
+    public function toggleStudentViewMode(GameSession $gameSession): void
     {
-        return [
-            'title' => ['nullable', 'string', 'max:255'],
-            'questions_total' => ['required', 'integer', 'min:1', 'max:50'],
-            'timer_default' => ['required', 'integer', 'min:5', 'max:600'],
-            'student_view_mode' => ['required', Rule::in(['full', 'choices_only'])],
-        ];
+        $gameSession->student_view_mode = $gameSession->student_view_mode === 'completo'
+            ? 'solo_alternativas'
+            : 'completo';
+        $gameSession->save();
+
     }
 
-    public function createSession()
+    public function getNextViewModeLabel(GameSession $gameSession): string
     {
-        $this->validate();
+        // Solo para construir el mensaje de confirmación en Blade (opcional)
+        return $gameSession->student_view_mode === 'full'
+            ? 'Solo alternativas'
+            : 'Completo';
+    }
 
-        $session = GameSession::create([
-            'code' => Str::upper(Str::random(6)),
-            'title' => $this->title ?: 'Partida',
-            'phase_mode' => 'basic',
-            'questions_total' => $this->questions_total,
-            'timer_default' => $this->timer_default,
-            'student_view_mode' => $this->student_view_mode,
-            'is_active' => false,
-            'is_running' => false,
-            'current_q_index' => 0,
-            'is_paused' => false,
-        ]);
 
-        $totalAvailable = \App\Models\Question::count();
+    public function nuevo()
+    {
+        // Defaults del form (ya están definidos en el form)
+        $this->form->reset();
+    }
+
+    public function save_session()
+    {
+        // Validación (incluye enum y rangos)
+        // Primero verifica banco de preguntas:
+        $totalAvailable = Question::count();
         if ($totalAvailable === 0) {
-            $this->addError('title', 'No hay preguntas en el banco. Importa o crea algunas primero.');
+            $this->addError('form.title', 'No hay preguntas en el banco. Importa o crea algunas primero.');
             return;
         }
-        $this->questions_total = min($this->questions_total, $totalAvailable);
 
-        // Autoseleccionar N preguntas aleatorias si hay banco suficiente
-        $qs = Question::inRandomOrder()->take($this->questions_total)->get();
-        $i = 0;
-        foreach ($qs as $q) {
-            SessionQuestion::create([
+        // Ajusta el total solicitado al disponible si es necesario (y al límite del schema)
+        $this->form->questions_total = min($this->form->questions_total ?? 10, $totalAvailable);
+
+        // Crea la sesión desde el Form (autogenera code si está vacío)
+        $res = $this->form->store();
+
+        /** @var GameSession $session */
+        $session = $this->form->gameSession;
+
+        // Persistimos preguntas aleatorias para la sesión
+        $qs = Question::inRandomOrder()->take($this->form->questions_total)->get();
+        $payload = [];
+        foreach ($qs as $i => $q) {
+            $payload[] = [
                 'game_session_id' => $session->id,
-                'question_id' => $q->id,
-                'q_order' => $i++,
-            ]);
+                'question_id'     => $q->id,
+                'q_order'         => $i,
+                'created_at'      => now(),
+                'updated_at'      => now(),
+            ];
+        }
+        if (!empty($payload)) {
+            SessionQuestion::insert($payload);
         }
 
-        $this->reset(['title', 'questions_total', 'timer_default', 'student_view_mode']);
+        // Asegura que el contador guardado coincida con lo seleccionado
+        if ($session->questions_total != $this->form->questions_total) {
+            $session->update(['questions_total' => $this->form->questions_total]);
+        }
+
+        // Limpia el form y cierra modal (Bootstrap client-side)
+        $this->form->reset();
+        $this->dispatch('cerrar_modal_gamesession');
+
         session()->flash('ok', "Partida creada: {$session->code}");
     }
 
     public function toggleActive(GameSession $gameSession)
     {
-        // Solo una activa a la vez (opcional)
-        if (!$gameSession->is_active) {
-            GameSession::where('is_active', true)->update(['is_active' => false]);
-        }
-        $gameSession->update(['is_active' => !$gameSession->is_active]);
+          $gameSession->update(['is_active' => !$gameSession->is_active]);
     }
 
     public function endSession(GameSession $gameSession)
     {
         $gameSession->update([
-            'is_active' => false,
+            'is_active'  => false,
             'is_running' => false,
-            'is_paused' => false,
+            'is_paused'  => false,
         ]);
     }
 
@@ -94,7 +108,7 @@ class ManageSessions extends Component
 
         return view('livewire.manage-sessions', compact('sessions'))
             ->layout('layouts.adminlte', [
-                'title' => 'Partidas',
+                'title'  => 'Partidas',
                 'header' => 'Gestionar Partidas',
             ]);
     }
