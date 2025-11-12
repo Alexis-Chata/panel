@@ -136,12 +136,18 @@ class PlayBasic extends Component
         $this->answered_option_id = $optionId;
         $this->answered_any = true;
 
-        $pCount = SessionParticipant::where('game_session_id', $this->gameSession->id)->count();
-        $aCount = Answer::where('session_question_id', $this->current->id)->count();
+        $pCount = SessionParticipant::where('game_session_id', $this->gameSession->id)
+            ->where('is_ignored', false)
+            ->count();
+        $aCount = Answer::where('session_question_id', $this->current->id)
+            ->whereIn('session_participant_id', SessionParticipant::where('game_session_id', $this->gameSession->id)
+                ->where('is_ignored', false)
+                ->pluck('id'))
+            ->count();
 
         AnswerSubmitted::dispatch($this->gameSession->id, $aCount, $pCount);
 
-        if ($aCount >= $pCount) {
+        if ($aCount >= $pCount && $pCount > 0) {
             $this->gameSession->update(['is_paused' => true]);
             GameSessionStateChanged::dispatch($this->gameSession->id, [
                 'is_running' => true,
@@ -217,9 +223,15 @@ class PlayBasic extends Component
         $this->respuesta = '';
 
         // pausa si todos respondieron (igual que en answer())
-        $pCount = \App\Models\SessionParticipant::where('game_session_id', $this->gameSession->id)->count();
-        $aCount = \App\Models\Answer::where('session_question_id', $this->current->id)->count();
-        if ($aCount >= $pCount) {
+        $pCount = SessionParticipant::where('game_session_id', $this->gameSession->id)
+            ->where('is_ignored', false)
+            ->count();
+        $aCount = Answer::where('session_question_id', $this->current->id)
+            ->whereIn('session_participant_id', SessionParticipant::where('game_session_id', $this->gameSession->id)
+                ->where('is_ignored', false)
+                ->pluck('id'))
+            ->count();
+        if ($aCount >= $pCount && $pCount > 0) {
             $this->gameSession->update(['is_paused' => true]);
             \App\Events\GameSessionStateChanged::dispatch($this->gameSession->id, [
                 'is_running' => true,
