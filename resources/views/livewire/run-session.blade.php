@@ -177,21 +177,87 @@
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <h6>Alternativas</h6>
-                        <ul class="list-group">
-                            @foreach ($current->question->options->sortBy('opt_order') as $opt)
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div><strong>{{ $opt->label }}.</strong> {{ $opt->content }}</div>
-                                    @if ($gameSession->is_paused && $opt->is_correct)
-                                        <span class="badge badge-success">Correcta</span>
-                                    @endif
-                                </li>
-                            @endforeach
-                        </ul>
-                        @if ($gameSession->is_paused && ($current->feedback_override ?? $current->question->feedback))
-                            <div class="alert alert-info mt-3">
-                                {!! nl2br(e($current->feedback_override ?? $current->question->feedback)) !!}
+                        {{-- SI NO es short, se muestran las alternativas como siempre --}}
+                        @if ($current->question->qtype !== 'short')
+                            <h6>Alternativas</h6>
+                            <ul class="list-group">
+                                @foreach ($current->question->options->sortBy('opt_order') as $opt)
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div><strong>{{ $opt->label }}.</strong> {{ $opt->content }}</div>
+                                        @if ($gameSession->is_paused && $opt->is_correct)
+                                            <span class="badge badge-success">Correcta</span>
+                                        @endif
+                                    </li>
+                                @endforeach
+                            </ul>
+
+                            @if ($gameSession->is_paused && ($current->feedback_override ?? $current->question->feedback))
+                                <div class="alert alert-info mt-3">
+                                    {!! nl2br(e($current->feedback_override ?? $current->question->feedback)) !!}
+                                </div>
+                            @endif
+
+                            {{-- SI es short, se muestran las respuestas escritas --}}
+                        @else
+                            <h6>Respuestas de participantes</h6>
+                            <div class="table-responsive" style="max-height: 320px; overflow-y:auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Participante</th>
+                                            <th>Respuesta</th>
+                                            <th>Estado</th>
+                                            <th class="text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse($shortAnswers as $ans)
+                                            @php
+                                                $p = $shortParticipants[$ans->session_participant_id] ?? null;
+                                                $nombre =
+                                                    $p->nickname ??
+                                                    ($p->user->name ?? 'Participante #' . $ans->session_participant_id);
+                                            @endphp
+                                            <tr>
+                                                <td>{{ $nombre }}</td>
+                                                <td style="white-space: pre-wrap; max-width: 260px;">
+                                                    {{ $ans->text }}
+                                                </td>
+                                                <td>
+                                                    @if ($ans->is_correct)
+                                                        <span class="badge badge-success">Correcta</span>
+                                                    @elseif (!is_null($ans->answered_at))
+                                                        <span class="badge badge-secondary">Pendiente /
+                                                            Incorrecta</span>
+                                                    @else
+                                                        <span class="badge badge-light">Sin revisar</span>
+                                                    @endif
+                                                </td>
+                                                <td class="text-right text-nowrap">
+                                                    <button class="btn btn-xs btn-outline-success"
+                                                        wire:click="markShortCorrect({{ $ans->id }}, true)">
+                                                        ✓ Correcta
+                                                    </button>
+                                                    <button class="btn btn-xs btn-outline-danger"
+                                                        wire:click="markShortCorrect({{ $ans->id }}, false)">
+                                                        ✗ Incorrecta
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="4"><em>No hay respuestas enviadas aún.</em></td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
                             </div>
+
+                            @if ($gameSession->is_paused && ($current->feedback_override ?? $current->question->feedback))
+                                <div class="alert alert-info mt-3">
+                                    {!! nl2br(e($current->feedback_override ?? $current->question->feedback)) !!}
+                                </div>
+                            @endif
                         @endif
                     </div>
                 </div>

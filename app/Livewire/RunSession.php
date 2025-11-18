@@ -379,6 +379,11 @@ class RunSession extends Component
     {
         if (!$this->current) return [];
 
+        // 👉 Si es pregunta corta, no hay distribución de alternativas
+        if ($this->current->question->qtype === 'short') {
+            return [];
+        }
+
         $activeIds = SessionParticipant::where('game_session_id', $this->gameSession->id)
             ->where('is_ignored', false)
             ->pluck('id');
@@ -439,6 +444,41 @@ class RunSession extends Component
         $this->dispatch('render'); // refresca métricas/listas
     }
 
+    public function markShortCorrect(int $answerId, bool $correct = true): void
+    {
+        // Asegurar que haya pregunta actual
+        if (! $this->current) {
+            return;
+        }
+
+        // Buscar la respuesta SOLO de la pregunta actual (por seguridad)
+        $answer = Answer::where('id', $answerId)
+            ->where('session_question_id', $this->current->id)
+            ->first();
+
+        if (! $answer) {
+            return;
+        }
+
+        // Marcar como correcta/incorrecta
+        $answer->is_correct = $correct;
+        $answer->score      = $correct ? 1 : 0; // si luego quieres ponderar, aquí lo cambias
+        $answer->save();
+
+        // Recalcular totales del participante
+        $sum = Answer::where('session_participant_id', $answer->session_participant_id);
+
+        SessionParticipant::where('id', $answer->session_participant_id)->update([
+            'score'         => (clone $sum)->where('is_correct', true)->count(),
+            'time_total_ms' => (clone $sum)->sum('time_ms'),
+        ]);
+
+        $this->dispatch(
+            'toast',
+            body: $correct ? 'Respuesta marcada como CORRECTA.' : 'Respuesta marcada como INCORRECTA.'
+        );
+    }
+
     /** Lista completa de participantes ordenados por score DESC y tiempo ASC */
     private function participantsList(): \Illuminate\Support\Collection
     {
@@ -457,16 +497,40 @@ class RunSession extends Component
         $this->loadCurrent();
         $this->revealIfAllAnswered();
 
-        $pCount   = $this->activeParticipantsCount();  // reemplaza al total bruto
-        $answered = $this->answeredActiveCount();      // responde entre activos
-        $corrects = $this->correctCountActive();     // ← antes: correctCount()
-        $dist     = $this->optionDistributionActive(); // ← antes: optionDistribution()
+        $pCount   = $this->activeParticipantsCount();
+        $answered = $this->answeredActiveCount();
+        $corrects = $this->correctCountActive();
+        $dist     = $this->optionDistributionActive();
         $top      = $this->liveTop();
         $participants = $this->participantsList();
 
-        return view('livewire.run-session', compact('pCount', 'answered', 'corrects', 'dist', 'top', 'participants'))
+        // ▼ NUEVO: respuestas cortas de la pregunta actual
+        $shortAnswers = collect();
+        $shortParticipants = collect();
+
+        if ($this->current && $this->current->question && $this->current->question->qtype === 'short') {
+            $shortAnswers = Answer::where('session_question_id', $this->current->id)
+                ->orderBy('created_at')
+                ->get();
+
+            $shortParticipants = SessionParticipant::with('user:id,name')
+                ->whereIn('id', $shortAnswers->pluck('session_participant_id')->unique())
+                ->get()
+                ->keyBy('id');
+        }
+
+        return view('livewire.run-session', compact(
+            'pCount',
+            'answered',
+            'corrects',
+            'dist',
+            'top',
+            'participants',
+            'shortAnswers',       // ▼ NUEVO
+            'shortParticipants'   // ▼ NUEVO
+        ))
             ->layout('layouts.adminlte', [
-                'title' => 'Ejecutar Partida',
+                'title'  => 'Ejecutar Partida',
                 'header' => ($this->gameSession->title ?? 'Partida') . ' [' . $this->gameSession->code . ']',
             ]);
     }
