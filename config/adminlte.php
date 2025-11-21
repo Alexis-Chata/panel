@@ -374,20 +374,26 @@ return [
             'icon'  => 'fas fa-question-circle',
             'can'   => 'questions.manage', // nuevo permiso
         ],
+        [
+            'text'  => 'Grupos de preguntas',
+            'route' => 'question-groups.index',   // 🔹 ruta Livewire
+            'icon'  => 'fas fa-layer-group',
+            'can' => 'questions.manage-groups',
+        ],
         ['header' => 'OPCIONES GENERALES'],
         [
-                'text'    => 'Configuraciones',
-                'icon'    => 'fas fa-cogs',
-                'can' => 'admin.configuracion.titulo',
-                'submenu' =>
+            'text'    => 'Configuraciones',
+            'icon'    => 'fas fa-cogs',
+            'can' => 'admin.configuracion.titulo',
+            'submenu' =>
+            [
                 [
-                    [
-                        'text' => 'Ajustes de Sistemas',
-                        'icon'    => 'fas fa-cog',
-                        'route'  => 'admin.configuracion.index',
-                        'can'  => 'admin.configuracion.titulo',
-                    ],
+                    'text' => 'Ajustes de Sistemas',
+                    'icon'    => 'fas fa-cog',
+                    'route'  => 'admin.configuracion.index',
+                    'can'  => 'admin.configuracion.titulo',
                 ],
+            ],
         ],
         // Puedes añadir más secciones/links según crezca el proyecto.
     ],

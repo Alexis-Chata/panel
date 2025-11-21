@@ -20,6 +20,16 @@
             </div>
 
             <div class="form-inline mr-3 mb-2">
+                <label class="mr-2">Grupo</label>
+                <select class="form-control form-control-sm" wire:model.live="question_group_id">
+                    <option value="">Todos</option>
+                    @foreach ($groups as $g)
+                        <option value="{{ $g->id }}">{{ $g->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="form-inline mr-3 mb-2">
                 <label class="mr-2">Mostrar</label>
                 <select class="form-control form-control-sm" wire:model.live="perPage">
                     <option value="10">10</option>
@@ -71,6 +81,7 @@
                         <th>Enunciado</th>
                         <th>Feedback</th>
                         <th>Tipo</th>
+                        <th>Grupo</th>
                         <th class="text-nowrap">Acciones</th>
                     </tr>
                 </thead>
@@ -91,6 +102,7 @@
                                     <span class="badge badge-primary">Opción múltiple</span>
                                 @endif
                             </td>
+                            <td>{{ $q->group->name ?? '-' }}</td>
                             <td class="text-nowrap">
                                 <button class="btn btn-sm btn-outline-primary"
                                     wire:click="openEdit({{ $q->id }})">
@@ -131,6 +143,20 @@
                 </div>
 
                 <div class="modal-body">
+
+                    {{-- Grupo de preguntas --}}
+                    <div class="form-group">
+                        <label>Grupo de preguntas</label>
+                        <select class="form-control" wire:model.live="question_group_id">
+                            <option value="">— Selecciona un grupo —</option>
+                            @foreach ($groups as $g)
+                                <option value="{{ $g->id }}">{{ $g->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('question_group_id')
+                            <small class="text-danger d-block">{{ $message }}</small>
+                        @enderror
+                    </div>
 
                     {{-- Tipo de pregunta --}}
                     <div class="form-group">

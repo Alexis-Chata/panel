@@ -17,6 +17,7 @@ return new class extends Migration
             $table->longText('feedback')->nullable();
             $table->enum('qtype', ['multiple', 'short'])->default('multiple');
             $table->json('meta')->nullable(); // { short_answer: {case_sensitive: false, strip_accents: true, max_distance: 0..3} }
+            $table->foreignId('question_group_id')->constrained('question_groups');
             $table->timestamps();
         });
     }

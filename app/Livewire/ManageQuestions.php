@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Imports\QuestionsImport;
 use App\Models\Question;
+use App\Models\QuestionGroup;
 use App\Models\QuestionOption;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -37,6 +38,7 @@ class ManageQuestions extends Component
     ];
 
     public bool $showModal = false;
+    public ?int $question_group_id = null;   // filtro + asignación
 
     /**
      * Reglas generales (las usamos sobre todo para el import con validateOnly('file'))
@@ -71,6 +73,7 @@ class ManageQuestions extends Component
         $this->statement = $q->statement;
         $this->feedback  = $q->feedback;
         $this->qtype     = $q->qtype ?? 'multiple';
+        $this->question_group_id = $q->question_group_id;
 
         // Si es multiple, cargamos las opciones; si es short, mantenemos las por defecto (no se guardan)
         if ($this->qtype === 'multiple') {
@@ -113,6 +116,7 @@ class ManageQuestions extends Component
     protected function rulesForSave(): array
     {
         $rules = [
+            'question_group_id' => ['required', 'exists:question_groups,id'],
             'statement' => ['required', 'string'],
             'feedback'  => ['nullable', 'string'],
             'qtype'     => ['required', 'in:multiple,short'],
@@ -150,6 +154,7 @@ class ManageQuestions extends Component
                 'statement' => $this->statement,
                 'feedback'  => $this->feedback,
                 'qtype'     => $this->qtype,
+                'question_group_id' => $this->question_group_id,
             ]);
 
             // Si es multiple, reemplazamos opciones; si es short, borramos cualquier opción antigua
@@ -159,6 +164,7 @@ class ManageQuestions extends Component
                 'statement' => $this->statement,
                 'feedback'  => $this->feedback,
                 'qtype'     => $this->qtype,
+                'question_group_id' => $this->question_group_id,
             ]);
         }
 
@@ -210,6 +216,7 @@ class ManageQuestions extends Component
     {
         $this->reset(['q_id', 'statement', 'feedback']);
         $this->qtype = 'multiple';
+        $this->question_group_id = null;
         $this->resetOptions();
     }
 
@@ -239,7 +246,12 @@ class ManageQuestions extends Component
 
     public function render()
     {
+        $groups = QuestionGroup::orderBy('name')->get();
+
         $q = Question::query()
+            ->when($this->question_group_id, function ($qq) {
+                $qq->where('question_group_id', $this->question_group_id);
+            })
             ->when($this->search, function ($qq) {
                 $s = '%' . $this->search . '%';
                 $qq->where(function ($sub) use ($s) {
@@ -250,6 +262,6 @@ class ManageQuestions extends Component
             ->latest()
             ->paginate($this->perPage);
 
-        return view('livewire.manage-questions', ['rows' => $q]);
+        return view('livewire.manage-questions', ['rows' => $q, 'groups' => $groups,]);
     }
 }

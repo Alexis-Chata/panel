@@ -27,6 +27,7 @@ class RolePermissionSeeder extends Seeder
             'questions.manage', // nuevo permiso
             'questions.import', // NUEVO
             'sessions.export',  // NUEVO
+            'questions.manage-groups', // NUEVO
         ];
 
         foreach ($perms as $p) {
@@ -34,7 +35,7 @@ class RolePermissionSeeder extends Seeder
         }
 
         $admin->givePermissionTo($perms);
-        $docente->givePermissionTo(['sessions.manage', 'sessions.run', 'sessions.play', 'questions.manage', 'questions.import', 'sessions.export']);
+        $docente->givePermissionTo(['sessions.manage', 'sessions.run', 'sessions.play', 'questions.manage', 'questions.import', 'sessions.export', 'questions.manage-groups']);
         $estudiante->givePermissionTo(['sessions.play']);
 
         #CONFIGURACION

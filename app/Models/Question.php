@@ -3,17 +3,24 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Question extends Model
 {
-    protected $fillable = ['statement', 'feedback', 'qtype', 'meta'];
+    protected $fillable = ['statement', 'feedback', 'qtype', 'meta', 'question_group_id',];
 
-    public function options()
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(QuestionGroup::class, 'question_group_id');
+    }
+
+    public function options(): HasMany
     {
         return $this->hasMany(QuestionOption::class);
     }
 
-    public function shortAnswers()
+    public function shortAnswers(): HasMany
     {
         return $this->hasMany(QuestionShortAnswer::class);
     }

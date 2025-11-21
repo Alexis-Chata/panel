@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Question;
+use App\Models\QuestionGroup;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,14 @@ class QuestionShortAnswerSeeder extends Seeder
     public function run(): void
     {
         DB::transaction(function () {
+            $generalGroup = QuestionGroup::firstOrCreate(
+                ['name' => 'General'],
+                [
+                    'description' => 'Grupo general por defecto',
+                    'is_active'   => true,
+                ]
+            );
+
             $items = [
                 [
                     'statement' => '¿Capital de Perú?',
@@ -68,6 +77,7 @@ class QuestionShortAnswerSeeder extends Seeder
                         'feedback' => $row['feedback'],
                         'qtype'    => $row['qtype'],
                         'meta'     => $row['meta'],
+                        'question_group_id' => $generalGroup->id,
                     ]
                 );
 
