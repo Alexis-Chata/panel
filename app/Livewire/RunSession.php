@@ -431,8 +431,8 @@ class RunSession extends Component
     public function toggleIgnore(int $participantId): void
     {
         $p = SessionParticipant::where('game_session_id', $this->gameSession->id)
-            ->where('id', $participantId)           // ← agrega esta condición
-            ->firstOrFail();                        // ← en lugar de findOrFail()
+            ->where('id', $participantId)
+            ->firstOrFail();
 
         $p->update(['is_ignored' => ! $p->is_ignored]);
 
@@ -440,8 +440,8 @@ class RunSession extends Component
             ? 'Participante marcado como inactivo (ignorado).'
             : 'Participante reactivado.');
 
-        $this->broadcastState();   // opcional, para sincronizar pantallas
-        $this->dispatch('render'); // refresca métricas/listas
+        $this->broadcastState();
+        $this->dispatch('render');
     }
 
     public function markShortCorrect(int $answerId, bool $correct = true): void

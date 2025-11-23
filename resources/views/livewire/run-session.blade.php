@@ -289,7 +289,7 @@
                                                 <strong class="ml-1">
                                                     {{ $part->nickname ?? ($part->user?->name ?? 'Jugador ' . ($i + 1)) }}
                                                 </strong>
-                                                @if ($p->is_ignored)
+                                                @if ($part->is_ignored)
                                                     <span class="badge badge-warning ml-2">Inactivo</span>
                                                 @endif
                                             </div>
@@ -303,9 +303,9 @@
                                             </div>
                                             <div class="btn-group btn-group-sm">
                                                 <button
-                                                    class="btn btn-outline-{{ $p->is_ignored ? 'success' : 'secondary' }}"
-                                                    wire:click="toggleIgnore({{ $p->id }})">
-                                                    {{ $p->is_ignored ? 'Reactivar' : 'Ignorar' }}
+                                                    class="btn btn-outline-{{ $part->is_ignored ? 'success' : 'secondary' }}"
+                                                    wire:click="toggleIgnore({{ $part->id }})">
+                                                    {{ $part->is_ignored ? 'Reactivar' : 'Ignorar' }}
                                                 </button>
                                             </div>
                                         </li>
