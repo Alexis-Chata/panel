@@ -17,8 +17,9 @@ return new class extends Migration
             $table->string('title')->nullable();
             $table->enum('phase_mode', ['basic'])->default('basic');
             $table->unsignedTinyInteger('questions_total')->default(10);
+            $table->foreignId('question_group_id')->constrained('question_groups');
             $table->unsignedSmallInteger('timer_default')->default(30);
-            $table->enum('student_view_mode', ['solo_alternativas','completo'])->default('completo');
+            $table->enum('student_view_mode', ['solo_alternativas', 'completo'])->default('completo');
             $table->boolean('is_active')->default(false);
             $table->boolean('is_running')->default(false);
             $table->unsignedSmallInteger('current_q_index')->default(0);

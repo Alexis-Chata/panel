@@ -9,6 +9,7 @@ use Illuminate\Validation\Rule;
 use Livewire\Form;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Rule as RuleAttr; // 👈 IMPORTANTE: Regla de Livewire
 
 class GameSessionForm extends Form
 {
@@ -16,6 +17,7 @@ class GameSessionForm extends Form
 
     // === Campos del formulario ===
     public ?string $code = null;                     // size:12 | alpha_num | unique
+    #[RuleAttr('required|string|max:255')]
     public ?string $title = null;                    // nullable
     public string  $phase_mode = 'basic';            // enum: basic
     public int     $questions_total = 10;            // uint8
@@ -27,26 +29,33 @@ class GameSessionForm extends Form
     public ?string $current_q_started_at = null;     // datetime string (Y-m-d H:i:s) o null
     public bool    $is_paused = false;
     public ?string $starts_at = null;                // datetime string (Y-m-d H:i:s) o null
+    #[RuleAttr('required|exists:question_groups,id')]
+    public $question_group_id;
 
     // ===== Helpers =====
     protected function rules(): array
     {
         return [
             'code' => [
-                'nullable', 'string', 'size:12', 'alpha_num',
+                'nullable',
+                'string',
+                'size:12',
+                'alpha_num',
                 Rule::unique('game_sessions', 'code')->ignore($this->gameSession?->id),
             ],
-            'title' => ['nullable', 'string', 'max:255'],
+            'title' => ['required', 'string', 'max:255'],
             'phase_mode' => ['required', Rule::in(['basic'])],
             'questions_total' => ['required', 'integer', 'min:1', 'max:255'],
             'timer_default' => ['required', 'integer', 'min:5', 'max:3600'],
-            'student_view_mode' => ['required', Rule::in(['solo_alternativas','completo'])],
+            'student_view_mode' => ['required', Rule::in(['solo_alternativas', 'completo'])],
             'is_active' => ['boolean'],
             'is_running' => ['boolean'],
             'current_q_index' => ['required', 'integer', 'min:0', 'max:65535'],
             'current_q_started_at' => ['nullable', 'date'],
             'is_paused' => ['boolean'],
             'starts_at' => ['nullable', 'date'],
+            // 👇 por si acaso, también lo agregamos aquí explícito
+            'question_group_id' => ['required', 'integer', 'exists:question_groups,id'],
         ];
     }
 
@@ -55,7 +64,7 @@ class GameSessionForm extends Form
         $this->phase_mode = 'basic';
         $this->questions_total = 10;
         $this->timer_default = 30;
-        $this->student_view_mode = 'full';
+        $this->student_view_mode = 'completo'; // 👈 que coincida con las reglas
         $this->is_active = false;
         $this->is_running = false;
         $this->current_q_index = 0;
@@ -72,8 +81,9 @@ class GameSessionForm extends Form
         $this->title = $gameSession->title;
         $this->phase_mode = $gameSession->phase_mode ?? 'basic';
         $this->questions_total = (int) $gameSession->questions_total;
+        $this->question_group_id = $gameSession->question_group_id;
         $this->timer_default = (int) $gameSession->timer_default;
-        $this->student_view_mode = $gameSession->student_view_mode ?? 'full';
+        $this->student_view_mode = $gameSession->student_view_mode ?? 'completo';
         $this->is_active = (bool) $gameSession->is_active;
         $this->is_running = (bool) $gameSession->is_running;
         $this->current_q_index = (int) $gameSession->current_q_index;
@@ -157,6 +167,7 @@ class GameSessionForm extends Form
             'current_q_started_at' => $currentStartedAt,
             'is_paused' => (bool) $this->is_paused,
             'starts_at' => $startsAt,
+            'question_group_id' => $this->question_group_id,
         ];
     }
 
@@ -195,8 +206,7 @@ class GameSessionForm extends Form
     {
         if (! $this->gameSession?->id) return;
 
-        foreach ($files as $file)
-        {
+        foreach ($files as $file) {
             // Guarda en: storage/app/public/game_sessions/{id}/
             $path = $file->storeAs(
                 "game_sessions/{$this->gameSession->id}",

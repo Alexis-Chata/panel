@@ -65,14 +65,28 @@ class ManageSessions extends Component
         $isEdit = (bool) $this->form->gameSession?->id;
 
         if (! $isEdit) {
-            // Crear
-            $totalAvailable = Question::count();
+            // 🔹 1) Construimos el query SOLO con preguntas del grupo elegido
+            $query = Question::query();
+
+            if ($this->form->question_group_id) {
+                $query->where('question_group_id', $this->form->question_group_id);
+            }
+
+            // 🔹 2) Contar preguntas disponibles de ese grupo
+            $totalAvailable = $query->count();
+
             if ($totalAvailable === 0) {
-                $this->addError('form.title', 'No hay preguntas en el banco. Importa o crea algunas primero.');
+                $this->addError(
+                    'form.questions_total',
+                    'No hay preguntas disponibles en el grupo seleccionado.'
+                );
                 return;
             }
 
+            // 🔹 3) Ajustar questions_total al máximo disponible
             $this->form->questions_total = min($this->form->questions_total ?? 10, $totalAvailable);
+
+            // 🔹 4) Guardar la partida (GameSessionForm debe guardar question_group_id)
             $this->form->store();
             /** @var GameSession $session */
             $session = $this->form->gameSession;
@@ -82,8 +96,15 @@ class ManageSessions extends Component
                 $this->form->attachFiles($this->uploads);
             }
 
-            // Seleccionar preguntas aleatorias
-            $qs = Question::inRandomOrder()->take($this->form->questions_total)->get();
+            // 🔹 5) Volver a construir el query filtrado y tomar aleatorias
+            $qs = Question::query()
+                ->when($this->form->question_group_id, function ($q) {
+                    $q->where('question_group_id', $this->form->question_group_id);
+                })
+                ->inRandomOrder()
+                ->take($this->form->questions_total)
+                ->get();
+
             $payload = [];
             foreach ($qs as $i => $q) {
                 $payload[] = [
@@ -94,6 +115,7 @@ class ManageSessions extends Component
                     'updated_at'      => now(),
                 ];
             }
+
             if ($payload) {
                 SessionQuestion::insert($payload);
             }
@@ -105,11 +127,10 @@ class ManageSessions extends Component
             $msg = "Partida creada: {$session->code}";
         } else {
             // Editar
-            // (Opcional) puedes limitar questions_total al disponible, pero no tocamos SessionQuestions aquí
             $this->form->update();
 
             if (!empty($this->uploads)) {
-                $this->form->attachFiles($this->uploads); // añade nuevos adjuntos
+                $this->form->attachFiles($this->uploads);
             }
 
             $msg = 'Partida actualizada correctamente.';
@@ -145,8 +166,9 @@ class ManageSessions extends Component
     public function render()
     {
         $sessions = GameSession::latest()->paginate(10);
+        $questionGroups = \App\Models\QuestionGroup::orderBy('name')->get();
 
-        return view('livewire.manage-sessions', compact('sessions'))
+        return view('livewire.manage-sessions', compact('sessions', 'questionGroups'))
             ->layout('layouts.adminlte', [
                 'title'  => 'Partidas',
                 'header' => 'Gestionar Partidas',
