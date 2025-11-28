@@ -10,6 +10,7 @@ class Answer extends Model
         'session_participant_id',
         'session_question_id',
         'question_option_id',
+        'text',
         'is_correct',
         'time_ms',
         'answered_at',
