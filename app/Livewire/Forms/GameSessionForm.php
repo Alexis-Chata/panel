@@ -4,35 +4,44 @@ namespace App\Livewire\Forms;
 
 use App\Models\Archivo;
 use App\Models\GameSession;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
-use Livewire\Form;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
-use Livewire\Attributes\Rule as RuleAttr; // 👈 IMPORTANTE: Regla de Livewire
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Rule as RuleAttr;
+use Livewire\Form;
 
 class GameSessionForm extends Form
 {
     public ?GameSession $gameSession = null;
 
-    // === Campos del formulario ===
-    public ?string $code = null;                     // size:12 | alpha_num | unique
-    #[RuleAttr('required|string|max:255')]
-    public ?string $title = null;                    // nullable
-    public string  $phase_mode = 'basic';            // enum: basic
-    public int     $questions_total = 10;            // uint8
-    public int     $timer_default = 30;              // uint16
-    public string  $student_view_mode = 'completo';      // enum: choices_only | full
-    public bool    $is_active = false;
-    public bool    $is_running = false;
-    public int     $current_q_index = 0;             // uint16
-    public ?string $current_q_started_at = null;     // datetime string (Y-m-d H:i:s) o null
-    public bool    $is_paused = false;
-    public ?string $starts_at = null;                // datetime string (Y-m-d H:i:s) o null
-    #[RuleAttr('required|exists:question_groups,id')]
-    public $question_group_id;
+    public ?string $code = null;
 
-    // ===== Helpers =====
+    #[RuleAttr('required|string|max:255')]
+    public ?string $title = null;
+
+    public string $phase_mode = 'basic';
+
+    public int $questions_total = 0;
+
+    public int $timer_default = 30;
+
+    public string $student_view_mode = 'completo';
+
+    public bool $is_active = false;
+
+    public bool $is_running = false;
+
+    public int $current_q_index = 0;
+
+    public ?string $current_q_started_at = null;
+
+    public bool $is_paused = false;
+
+    public ?string $starts_at = null;
+
+    public $question_group_id = null;
+
     protected function rules(): array
     {
         return [
@@ -45,7 +54,7 @@ class GameSessionForm extends Form
             ],
             'title' => ['required', 'string', 'max:255'],
             'phase_mode' => ['required', Rule::in(['basic'])],
-            'questions_total' => ['required', 'integer', 'min:1', 'max:255'],
+            'questions_total' => ['required', 'integer', 'min:0', 'max:255'],
             'timer_default' => ['required', 'integer', 'min:5', 'max:3600'],
             'student_view_mode' => ['required', Rule::in(['solo_alternativas', 'completo'])],
             'is_active' => ['boolean'],
@@ -54,23 +63,23 @@ class GameSessionForm extends Form
             'current_q_started_at' => ['nullable', 'date'],
             'is_paused' => ['boolean'],
             'starts_at' => ['nullable', 'date'],
-            // 👇 por si acaso, también lo agregamos aquí explícito
-            'question_group_id' => ['required', 'integer', 'exists:question_groups,id'],
+            'question_group_id' => ['nullable', 'integer', 'exists:question_groups,id'],
         ];
     }
 
     protected function defaults(): void
     {
         $this->phase_mode = 'basic';
-        $this->questions_total = 10;
+        $this->questions_total = 0;
         $this->timer_default = 30;
-        $this->student_view_mode = 'completo'; // 👈 que coincida con las reglas
+        $this->student_view_mode = 'completo';
         $this->is_active = false;
         $this->is_running = false;
         $this->current_q_index = 0;
         $this->current_q_started_at = null;
         $this->is_paused = false;
         $this->starts_at = null;
+        $this->question_group_id = null;
     }
 
     public function set(GameSession $gameSession): void
@@ -92,9 +101,42 @@ class GameSessionForm extends Form
         $this->starts_at = optional($gameSession->starts_at)->format('Y-m-d H:i:s');
     }
 
+    /** Partida sólo con título; el cuestionario se arma después en otro paso. */
+    public function storeBare(): GameSession
+    {
+        $this->validate([
+            'title' => ['required', 'string', 'max:255'],
+        ]);
+
+        if (blank($this->code)) {
+            $this->code = $this->generateUniqueCode(12);
+        }
+
+        $timer = max(5, min(3600, (int) ($this->timer_default ?: 30)));
+
+        $this->gameSession = GameSession::create([
+            'code' => $this->code,
+            'title' => $this->title,
+            'phase_mode' => 'basic',
+            'questions_total' => 0,
+            'timer_default' => $timer,
+            'student_view_mode' => in_array($this->student_view_mode, ['solo_alternativas', 'completo'], true)
+                ? $this->student_view_mode
+                : 'completo',
+            'is_active' => false,
+            'is_running' => false,
+            'current_q_index' => 0,
+            'current_q_started_at' => null,
+            'is_paused' => false,
+            'starts_at' => null,
+            'question_group_id' => null,
+        ]);
+
+        return $this->gameSession;
+    }
+
     public function store(): array
     {
-        // Genera code si no viene (12 chars alfanum. mayúsculas)
         if (blank($this->code)) {
             $this->code = $this->generateUniqueCode(12);
         }
@@ -108,7 +150,7 @@ class GameSessionForm extends Form
 
     public function update(): array
     {
-        if (!$this->gameSession?->id) {
+        if (! $this->gameSession?->id) {
             return ['status' => 'error', 'message' => 'No se ha seleccionado ninguna sesión'];
         }
 
@@ -126,7 +168,7 @@ class GameSessionForm extends Form
 
     public function eliminar(): array
     {
-        if (!$this->gameSession) {
+        if (! $this->gameSession) {
             return ['status' => 'error', 'message' => 'No se ha seleccionado ninguna sesión'];
         }
 
@@ -135,17 +177,15 @@ class GameSessionForm extends Form
         }
 
         $this->gameSession->delete();
-        $this->reset(); // limpia el form
+        $this->reset();
 
         return ['status' => 'success', 'message' => 'Sesión eliminada correctamente'];
     }
 
-    // ===== Internos =====
     protected function validatePayload(): array
     {
         $this->validate();
 
-        // Normaliza fechas (permitir strings o null)
         $currentStartedAt = $this->current_q_started_at
             ? Carbon::parse($this->current_q_started_at)
             : null;
@@ -154,12 +194,16 @@ class GameSessionForm extends Form
             ? Carbon::parse($this->starts_at)
             : null;
 
+        $gid = $this->question_group_id !== null && $this->question_group_id !== ''
+            ? (int) $this->question_group_id
+            : null;
+
         return [
-            'code' => $this->code, // ya validado unique/size/alpha_num
+            'code' => $this->code,
             'title' => $this->title,
             'phase_mode' => $this->phase_mode,
-            'questions_total' => $this->questions_total,
-            'timer_default' => $this->timer_default,
+            'questions_total' => (int) $this->questions_total,
+            'timer_default' => (int) $this->timer_default,
             'student_view_mode' => $this->student_view_mode,
             'is_active' => (bool) $this->is_active,
             'is_running' => (bool) $this->is_running,
@@ -167,14 +211,13 @@ class GameSessionForm extends Form
             'current_q_started_at' => $currentStartedAt,
             'is_paused' => (bool) $this->is_paused,
             'starts_at' => $startsAt,
-            'question_group_id' => $this->question_group_id,
+            'question_group_id' => $gid,
         ];
     }
 
     protected function generateUniqueCode(int $length = 12): string
     {
         do {
-            // Solo alfanumérico mayúscula, evita confusiones (0/O, 1/I opcional)
             $candidate = Str::upper(Str::random($length));
         } while (GameSession::where('code', $candidate)->exists());
 
@@ -183,40 +226,38 @@ class GameSessionForm extends Form
 
     public function deleteArchivo(Archivo $archivo): array
     {
-
         if (! $this->gameSession?->id || $archivo->game_session_id !== $this->gameSession->id) {
             return ['status' => 'error', 'message' => 'Archivo inválido.'];
         }
 
-        // borrar archivo físico (guardamos 'storage/...' en url)
         $path = str_replace('storage/', '', $archivo->url);
         try {
             Storage::disk('public')->delete($path);
         } catch (\Throwable $e) {
-            // si no existe físicamente, continuamos con el borrado lógico
         }
 
         $archivo->delete();
-        // refrescar la relación para la vista
         $this->gameSession->refresh();
 
         return ['status' => 'success', 'message' => 'Archivo eliminado.'];
     }
+
     public function attachFiles(array $files): void
     {
-        if (! $this->gameSession?->id) return;
+        if (! $this->gameSession?->id) {
+            return;
+        }
 
         foreach ($files as $file) {
-            // Guarda en: storage/app/public/game_sessions/{id}/
             $path = $file->storeAs(
                 "game_sessions/{$this->gameSession->id}",
-                time() . '-' . preg_replace('/\s+/', '_', $file->getClientOriginalName()),
+                time().'-'.preg_replace('/\s+/', '_', $file->getClientOriginalName()),
                 'public'
             );
 
             Archivo::create([
                 'game_session_id' => $this->gameSession->id,
-                'url'             => 'storage/' . $path, // para usar con asset() o directamente
+                'url' => 'storage/'.$path,
             ]);
         }
     }

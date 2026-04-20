@@ -1,6 +1,6 @@
 <div class="modal fade" id="gameSessionModal" tabindex="-1" aria-labelledby="gameSessionModalLabel" aria-hidden="true"
     data-backdrop="static" data-keyboard="false" wire:ignore.self>
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 id="gameSessionModalLabel" class="modal-title">
@@ -14,95 +14,103 @@
 
             <form wire:submit="save_session">
                 <div class="modal-body">
-                    <div class="form-row">
-                        <div class="form-group col-md-12">
+                    @unless ($form->gameSession?->id)
+                        <p class="small text-muted mb-3">
+                            Indica solo el nombre. Cuando guardes, la partida aparecerá en la tabla y podrás
+                            <strong>configurar el cuestionario</strong> haciendo clic en «Falta» en la columna Preguntas.
+                        </p>
+                        <div class="form-group">
                             <label>Título</label>
                             <input type="text" class="form-control" wire:model.defer="form.title"
-                                placeholder="Ej. Panel Básico">
+                                placeholder="Ej. Examen Unidad 3" autofocus>
                             @error('form.title')
                                 <small class="text-danger">{{ $message }}</small>
                             @enderror
                         </div>
-
-                        <div class="form-group col-md-6">
-                            <label>N° preguntas</label>
-                            <input type="number" class="form-control" min="1" max="50"
-                                wire:model.defer="form.questions_total">
-                            @error('form.questions_total')
-                                <small class="text-danger">{{ $message }}</small>
-                            @enderror
-                        </div>
-
-                        <div class="form-group col-md-6">
-                            <label>Tiempo por pregunta (s)</label>
-                            <input type="number" class="form-control" min="5" max="600"
-                                wire:model.defer="form.timer_default">
-                            @error('form.timer_default')
-                                <small class="text-danger">{{ $message }}</small>
-                            @enderror
-                        </div>
-
-                        <div class="form-group col-md-12">
-                            <label>Vista estudiante</label>
-                            <select class="form-control" wire:model.defer="form.student_view_mode">
-                                <option value="completo">Enunciado + alternativas</option>
-                                <option value="solo_alternativas">Solo alternativas</option>
-                            </select>
-                            @error('form.student_view_mode')
-                                <small class="text-danger">{{ $message }}</small>
-                            @enderror
-                        </div>
-
-                        <div class="form-group">
-                            <label>Grupo de preguntas</label>
-                            <select class="form-control" wire:model.defer="form.question_group_id">
-                                <option value="">-- Selecciona un grupo --</option>
-                                @foreach ($questionGroups as $g)
-                                    <option value="{{ $g->id }}">{{ $g->name }}</option>
-                                @endforeach
-                            </select>
-                            @error('form.question_group_id')
-                                <small class="text-danger d-block">{{ $message }}</small>
-                            @enderror
-                        </div>
-
-                        {{-- Opcional: mostrar el code generado (solo lectura) --}}
-                        @if ($form->gameSession?->code)
+                    @else
+                        <div class="form-row">
                             <div class="form-group col-md-12">
-                                <label>Código de sesión</label>
-                                <input type="text" class="form-control" value="{{ $form->gameSession->code }}"
-                                    readonly>
+                                <label>Título</label>
+                                <input type="text" class="form-control" wire:model.defer="form.title"
+                                    placeholder="Ej. Panel Básico">
+                                @error('form.title')
+                                    <small class="text-danger">{{ $message }}</small>
+                                @enderror
                             </div>
-                        @endif
-                    </div>
-                    {{-- ... campos existentes del modal ... --}}
-                    <div class="form-group">
-                        <label>Adjuntar archivos (opcional)</label>
-                        <input type="file" class="form-control-file" wire:model.live="uploads" multiple
-                            accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.ppt,.pptx,.zip">
-                        @error('uploads.*')
-                            <small class="text-danger">{{ $message }}</small>
-                        @enderror
 
-                        {{-- Preview simple de seleccionados --}}
-                        @if (!empty($uploads))
-                            <ul class="mt-2 small">
-                                @foreach ($uploads as $u)
-                                    <li>{{ $u->getClientOriginalName() }}
-                                        ({{ number_format($u->getSize() / 1024, 0) }}
-                                        KB)
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @endif
+                            <div class="form-group col-md-6">
+                                <label>N° preguntas (referencia)</label>
+                                <input type="number" class="form-control bg-light" min="0" max="255"
+                                    wire:model="form.questions_total" readonly tabindex="-1">
+                                <small class="text-muted">Lo define el modal de preguntas.</small>
+                            </div>
 
-                        {{-- Progreso mientras sube --}}
-                        <div wire:loading wire:target="uploads" class="small text-muted mt-1">
-                            Subiendo archivos…
+                            <div class="form-group col-md-6">
+                                <label>Tiempo por pregunta (s)</label>
+                                <input type="number" class="form-control" min="5" max="600"
+                                    wire:model.defer="form.timer_default">
+                                @error('form.timer_default')
+                                    <small class="text-danger">{{ $message }}</small>
+                                @enderror
+                            </div>
+
+                            <div class="form-group col-md-12">
+                                <label>Vista estudiante</label>
+                                <select class="form-control" wire:model.defer="form.student_view_mode">
+                                    <option value="completo">Enunciado + alternativas</option>
+                                    <option value="solo_alternativas">Solo alternativas</option>
+                                </select>
+                                @error('form.student_view_mode')
+                                    <small class="text-danger">{{ $message }}</small>
+                                @enderror
+                            </div>
+
+                            @if ($form->question_group_id)
+                                <input type="hidden" wire:model="form.question_group_id">
+                            @endif
+
+                            <div class="form-group col-md-12">
+                                <label>Categoría del banco</label>
+                                <div class="border rounded px-3 py-2 bg-light small mb-0">
+                                    {{ $questionGroups->firstWhere('id', (int) $form->question_group_id)?->name ?? 'Sin asignar' }}
+                                </div>
+                            </div>
+
+                            @if ($form->gameSession?->code)
+                                <div class="form-group col-md-12">
+                                    <label>Código de sesión</label>
+                                    <input type="text" class="form-control" value="{{ $form->gameSession->code }}"
+                                        readonly>
+                                </div>
+                            @endif
                         </div>
-                    </div>
-                    {{-- Archivos existentes (solo al editar) --}}
+                    @endunless
+
                     @if ($form->gameSession?->id)
+                        <div class="form-group mt-2">
+                            <label>Adjuntar archivos (opcional)</label>
+                            <input type="file" class="form-control-file" wire:model.live="uploads" multiple
+                                accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.ppt,.pptx,.zip">
+                            @error('uploads.*')
+                                <small class="text-danger">{{ $message }}</small>
+                            @enderror
+
+                            @if (!empty($uploads))
+                                <ul class="mt-2 small">
+                                    @foreach ($uploads as $u)
+                                        <li>{{ $u->getClientOriginalName() }}
+                                            ({{ number_format($u->getSize() / 1024, 0) }}
+                                            KB)
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+
+                            <div wire:loading wire:target="uploads" class="small text-muted mt-1">
+                                Subiendo archivos…
+                            </div>
+                        </div>
+
                         @php $existing = $form->gameSession->archivos()->latest()->get(); @endphp
 
                         @if ($existing->count())
@@ -150,7 +158,7 @@
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                     <button type="submit" class="btn btn-primary" wire:target="save_session"
                         wire:loading.attr="disabled">
-                        Guardar
+                        {{ $form->gameSession?->id ? 'Guardar cambios' : 'Crear partida' }}
                     </button>
                 </div>
             </form>

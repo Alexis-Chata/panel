@@ -265,6 +265,29 @@
 /* Modo oscuro global (AdminLTE) */
 .dark-mode .lobby-card { background: linear-gradient(180deg, #0b1220, #0d1529); border-color: #1f2a44; }
 
+/* Paginación Bootstrap: legible en dark-mode (Laravel + AdminLTE) */
+.dark-mode .pagination .page-link {
+    background-color: #1c2640;
+    border-color: #2a3a5c;
+    color: #d1d8e5;
+}
+.dark-mode .pagination .page-link:hover {
+    background-color: #243152;
+    border-color: #3d5a8a;
+    color: #fff;
+}
+.dark-mode .pagination .page-item.active .page-link {
+    background-color: #3c6dd0;
+    border-color: #3c6dd0;
+    color: #fff;
+}
+.dark-mode .pagination .page-item.disabled .page-link {
+    background-color: #121a2c;
+    border-color: #2a3a5c;
+    color: #5c6b8a;
+}
+.pagination-wrap .pagination { margin-bottom: 0; }
+
 /**************************************************************************************/
 /* Card de pregunta en modo oscuro (coincide con tu look) */
 .question-card { border: 1px solid #1f2a44; background: linear-gradient(180deg, #0b1220, #0d1529); }

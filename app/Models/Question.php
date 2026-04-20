@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Question extends Model
 {
-    protected $fillable = ['statement', 'feedback', 'qtype', 'meta', 'question_group_id',];
+    protected $fillable = ['statement', 'feedback', 'qtype', 'meta', 'question_group_id', 'user_id'];
 
     public function group(): BelongsTo
     {
@@ -34,9 +34,14 @@ class Question extends Model
 
         $norm = function ($s) use ($cfg) {
             $s = trim($s);
-            if (!$cfg['case_sensitive']) $s = \Illuminate\Support\Str::lower($s);
-            if ($cfg['strip_accents'])   $s = \Illuminate\Support\Str::ascii($s);
+            if (! $cfg['case_sensitive']) {
+                $s = \Illuminate\Support\Str::lower($s);
+            }
+            if ($cfg['strip_accents']) {
+                $s = \Illuminate\Support\Str::ascii($s);
+            }
             $s = preg_replace('/\s+/', ' ', $s);
+
             return trim($s, " \t\n\r\0\x0B\"'.,;:!?");
         };
 
@@ -46,9 +51,11 @@ class Question extends Model
             $d = levenshtein($u, $a);
             if ($cfg['max_distance'] === 0 ? $u === $a : $d <= $cfg['max_distance']) {
                 $factor = [0 => 1, 1 => 0.75, 2 => 0.5, 3 => 0.25][$d] ?? 1;
+
                 return ['ok' => true, 'score' => ($acc->weight / 100) * $factor, 'matched' => $acc->id];
             }
         }
+
         return ['ok' => false, 'score' => 0, 'matched' => null];
     }
 

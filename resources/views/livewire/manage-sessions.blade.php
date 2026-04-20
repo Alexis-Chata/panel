@@ -2,6 +2,9 @@
     @if (session('ok'))
         <div class="alert alert-success">{{ session('ok') }}</div>
     @endif
+    @if (session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
     <div class="row mb-2">
         <div class="col-12">
             <button class="btn btn-primary"
@@ -50,7 +53,16 @@
                     <td class="text-center">
                     {!! $s->is_running ? '<span class="badge badge-info">Sí</span>' : '<span class="text-muted">No</span>' !!}
                     </td>
-                    <td class="text-center">{{ $s->questions_total }}</td>
+                    <td class="text-center">
+                        @if (($s->session_questions_count ?? 0) === 0)
+                            <button type="button" class="btn btn-sm btn-warning text-dark font-weight-bold px-3"
+                                wire:click="openConfigureQuestions({{ $s->id }})" title="Configurar preguntas">
+                                Falta
+                            </button>
+                        @else
+                            <span class="text-muted">{{ $s->session_questions_count }}</span>
+                        @endif
+                    </td>
 
                     {{-- Columna Vista (span clickeable con confirm) --}}
                     @php
@@ -96,6 +108,6 @@
         </div>
     </div>
 
-    {{-- Modal separado en include para orden --}}
     @include('admin.partida.game-session-modal')
+    @include('admin.partida.session-questions-modal')
 </div>
