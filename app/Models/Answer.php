@@ -14,11 +14,13 @@ class Answer extends Model
         'is_correct',
         'time_ms',
         'answered_at',
+        'graded_at',
     ];
 
     protected $casts = [
         'is_correct' => 'boolean',
         'answered_at' => 'datetime',
+        'graded_at' => 'datetime',
     ];
 
     public function participant()

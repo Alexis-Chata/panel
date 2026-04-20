@@ -226,11 +226,11 @@
                                                 <td>
                                                     @if ($ans->is_correct)
                                                         <span class="badge badge-success">Correcta</span>
-                                                    @elseif (!is_null($ans->answered_at))
-                                                        <span class="badge badge-secondary">Pendiente /
-                                                            Incorrecta</span>
+                                                    @elseif (is_null($ans->graded_at))
+                                                        <span class="badge badge-warning text-dark">Pendiente de
+                                                            calificar</span>
                                                     @else
-                                                        <span class="badge badge-light">Sin revisar</span>
+                                                        <span class="badge badge-secondary">Incorrecta</span>
                                                     @endif
                                                 </td>
                                                 <td class="text-right text-nowrap">
@@ -367,6 +367,7 @@
 </div>
 @once
     @push('js')
+        <script src="{{ asset('js/sweetalert2@11.js') }}"></script>
         <script>
             (function() {
                 let lastKeySent = null;
@@ -407,6 +408,39 @@
 
         <script>
             window.addEventListener('livewire:init', () => {
+                Livewire.on('run-confirm-start', () => {
+                    if (window.Swal) {
+                        Swal.fire({
+                            title: '¿Seguro que deseas comenzar la partida?',
+                            text: 'Se iniciará el conteo y los estudiantes verán la pregunta.',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'Sí, iniciar',
+                            cancelButtonText: 'Cancelar',
+                            reverseButtons: true
+                        }).then((res) => {
+                            if (res.isConfirmed) {
+                                Livewire.dispatch('run-start-confirmed');
+                            }
+                        });
+                    } else if (confirm('¿Seguro que deseas comenzar la partida?')) {
+                        Livewire.dispatch('run-start-confirmed');
+                    }
+                });
+
+                Livewire.on('run-short-needs-grading', () => {
+                    if (window.Swal) {
+                        Swal.fire({
+                            title: 'Califica la pregunta antes de continuar',
+                            text: 'Hay respuestas abiertas pendientes de calificación.',
+                            icon: 'info',
+                            confirmButtonText: 'Entendido'
+                        });
+                    } else {
+                        alert('Califica la pregunta antes de continuar.');
+                    }
+                });
+
                 const sid = @json($gameSession->id);
 
                 function ready() {

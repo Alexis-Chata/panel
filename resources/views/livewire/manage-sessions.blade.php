@@ -91,6 +91,11 @@
                         <button class="btn btn-sm btn-primary" wire:click="run({{ $s->id }})">
                             Ingresar
                         </button>
+                        <button class="btn btn-sm btn-outline-secondary"
+                                wire:click="duplicateSession({{ $s->id }})"
+                                wire:confirm="¿Duplicar la partida {{ $s->code }} con sus preguntas?">
+                            Duplicar
+                        </button>
 
                         <button class="btn btn-sm btn-outline-danger"
                                 wire:click="endSession({{ $s->id }})"

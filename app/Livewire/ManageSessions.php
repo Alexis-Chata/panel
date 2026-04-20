@@ -82,6 +82,56 @@ class ManageSessions extends Component
         $this->compositionQuestionGroupId = null;
     }
 
+    public function duplicateSession(GameSession $gameSession): void
+    {
+        $copy = $gameSession->replicate([
+            'code',
+            'is_active',
+            'is_running',
+            'is_paused',
+            'current_q_index',
+            'current_q_started_at',
+            'starts_at',
+        ]);
+
+        $copy->code = $this->generateUniqueSessionCode();
+        $copy->title = trim(($gameSession->title ?? 'Partida').' (Copia)');
+        $copy->is_active = false;
+        $copy->is_running = false;
+        $copy->is_paused = false;
+        $copy->current_q_index = 0;
+        $copy->current_q_started_at = null;
+        $copy->starts_at = null;
+        $copy->save();
+
+        $originalQuestions = SessionQuestion::query()
+            ->where('game_session_id', $gameSession->id)
+            ->orderBy('q_order')
+            ->get();
+
+        if ($originalQuestions->isNotEmpty()) {
+            $payload = [];
+            foreach ($originalQuestions as $row) {
+                $payload[] = [
+                    'game_session_id' => $copy->id,
+                    'question_id' => $row->question_id,
+                    'q_order' => $row->q_order,
+                    'timer_override' => $row->timer_override,
+                    'feedback_override' => $row->feedback_override,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+            SessionQuestion::insert($payload);
+        }
+
+        $copy->update([
+            'questions_total' => $originalQuestions->count(),
+        ]);
+
+        session()->flash('ok', "Partida duplicada: {$copy->code}");
+    }
+
     public function updatedQuestionPickMode(string $value): void
     {
         if ($value === 'random') {
@@ -403,6 +453,15 @@ class ManageSessions extends Component
         }
 
         return $this->redirect(route('sessions.run', $gameSession));
+    }
+
+    private function generateUniqueSessionCode(int $length = 12): string
+    {
+        do {
+            $candidate = Str::upper(Str::random($length));
+        } while (GameSession::query()->where('code', $candidate)->exists());
+
+        return $candidate;
     }
 
     public function render()

@@ -157,14 +157,27 @@ class RunSession extends Component
 
     public function start(): void
     {
-        // ⚠️ No iniciar si no hay participantes
         if ($this->activeParticipantsCount() < 1) {
             $this->dispatch('toast', body: 'Necesitas al menos 1 participante para iniciar.');
 
             return;
         }
 
-        // Activa la partida pero aún NO arranca el cronómetro real
+        // Confirmación en frontend (SweetAlert).
+        $this->dispatch('run-confirm-start');
+    }
+
+    #[On('run-start-confirmed')]
+    public function startConfirmed(): void
+    {
+        // Defensa extra por si llegan eventos fuera de orden.
+        if ($this->activeParticipantsCount() < 1) {
+            $this->dispatch('toast', body: 'Necesitas al menos 1 participante para iniciar.');
+
+            return;
+        }
+
+        // Activa la partida pero aún NO arranca el cronómetro real.
         $this->gameSession->update([
             'is_active' => true,
             'is_running' => false,
@@ -243,6 +256,12 @@ class RunSession extends Component
     // Ajusta nextQuestion para usar el mismo patrón de conteo
     public function nextQuestion(): void
     {
+        if ($this->hasPendingShortAnswersToGrade()) {
+            $this->dispatch('run-short-needs-grading');
+
+            return;
+        }
+
         $next = $this->gameSession->current_q_index + 1;
 
         if ($next >= $this->gameSession->questions_total) {
@@ -507,6 +526,7 @@ class RunSession extends Component
         // Marcar como correcta/incorrecta
         $answer->is_correct = $correct;
         $answer->score = $correct ? 1 : 0; // si luego quieres ponderar, aquí lo cambias
+        $answer->graded_at = now();
         $answer->save();
 
         // Recalcular totales del participante
@@ -531,6 +551,27 @@ class RunSession extends Component
             ->orderByDesc('score')
             ->orderBy('time_total_ms')
             ->get();
+    }
+
+    /**
+     * Si la pregunta actual es abierta, exige revisar todas las respuestas activas.
+     */
+    private function hasPendingShortAnswersToGrade(): bool
+    {
+        if (! $this->current || ! $this->current->question || $this->current->question->qtype !== 'short') {
+            return false;
+        }
+
+        $activeIds = SessionParticipant::where('game_session_id', $this->gameSession->id)
+            ->where('is_ignored', false)
+            ->pluck('id');
+
+        return Answer::where('session_question_id', $this->current->id)
+            ->whereIn('session_participant_id', $activeIds)
+            ->whereNotNull('answered_at')
+            ->where('is_correct', false)
+            ->whereNull('graded_at')
+            ->exists();
     }
 
     // Renderizar la vista Livewire.
