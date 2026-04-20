@@ -7,11 +7,10 @@ use App\Exports\GameSessionResultsExport;
 use App\Http\Controllers\UploadController;
 use App\Livewire\Dashboard;
 use App\Livewire\JoinSession;
-use App\Livewire\ManageQuestionGroups;
-use App\Livewire\ManageQuestions;
 use App\Livewire\ManageSessions;
 use App\Livewire\PlayBasic;
 use App\Livewire\PlayFullscreen;
+use App\Livewire\QuestionBank;
 use App\Livewire\RunSession;
 use App\Livewire\ScreenDisplay;
 use App\Livewire\WinnersView;
@@ -142,12 +141,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/sessions', ManageSessions::class)->name('sessions.index');
         Route::get('/sessions/{gameSession}/run', RunSession::class)->name('sessions.run');
     });
-    Route::get('/questions', ManageQuestions::class)
+    Route::get('/questions', QuestionBank::class)
         ->name('questions.index')
         ->middleware('role:Admin|Docente');
 
     Route::middleware(['auth', 'role:Admin|Docente'])->group(function () {
-        Route::get('/question-groups', ManageQuestionGroups::class)
+        Route::redirect('/question-groups', '/questions')
             ->name('question-groups.index');
     });
 

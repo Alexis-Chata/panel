@@ -42,6 +42,9 @@
                                 <option value="{{ $g->id }}">{{ $g->name }}</option>
                             @endforeach
                         </select>
+                        <small class="text-muted d-block mt-1">
+                            Puedes cambiar de categoría y seguir marcando; las ya seleccionadas se conservan.
+                        </small>
                         @error('compositionQuestionGroupId')
                             <small class="text-danger d-block">{{ $message }}</small>
                         @enderror
@@ -98,10 +101,10 @@
                                 <div class="border rounded p-2"
                                     style="max-height: 280px; overflow: auto; background: rgba(0,0,0,.03);">
                                     @forelse ($poolQuestions as $pq)
-                                        <div class="form-check mb-1 d-flex align-items-start">
-                                            <input class="form-check-input mt-1" type="checkbox"
+                                        <div class="form-check mb-1 d-flex align-items-start session-question-row">
+                                            <input class="form-check-input mt-1 session-question-check" type="checkbox"
                                                 wire:key="comp-pick-{{ $pq->id }}"
-                                                wire:click.prevent="togglePoolQuestion({{ $pq->id }})"
+                                                wire:click="togglePoolQuestion({{ $pq->id }})"
                                                 id="compPq{{ $pq->id }}"
                                                 @checked(in_array($pq->id, $selectedQuestionIds ?? []))>
                                             <label class="form-check-label small" for="compPq{{ $pq->id }}"

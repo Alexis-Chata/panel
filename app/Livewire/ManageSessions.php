@@ -93,7 +93,6 @@ class ManageSessions extends Component
     public function updated($name): void
     {
         if ($name === 'compositionQuestionGroupId') {
-            $this->selectedQuestionIds = [];
             $this->poolQuestionSearch = '';
         }
     }
@@ -144,17 +143,24 @@ class ManageSessions extends Component
             return;
         }
 
+        $mode = $this->questionPickMode;
+        $needsCategory = $mode === 'random' || ($mode === 'mixed' && $this->randomExtraCount > 0);
+
         $this->validate([
-            'compositionQuestionGroupId' => ['required', 'exists:question_groups,id'],
+            'compositionQuestionGroupId' => [$needsCategory ? 'required' : 'nullable', 'exists:question_groups,id'],
         ]);
 
-        $groupId = (int) $this->compositionQuestionGroupId;
+        $groupId = ($this->compositionQuestionGroupId !== null && $this->compositionQuestionGroupId !== '')
+            ? (int) $this->compositionQuestionGroupId
+            : null;
 
-        $groupOk = QuestionGroup::query()->accessibleFor(Auth::user())->whereKey($groupId)->exists();
-        if (! $groupOk) {
-            $this->addError('compositionQuestionGroupId', 'No tienes acceso a esa categoría.');
+        if ($groupId) {
+            $groupOk = QuestionGroup::query()->accessibleFor(Auth::user())->whereKey($groupId)->exists();
+            if (! $groupOk) {
+                $this->addError('compositionQuestionGroupId', 'No tienes acceso a esa categoría.');
 
-            return;
+                return;
+            }
         }
 
         $orderedIds = $this->resolveCompositionQuestionIds($groupId);
@@ -181,8 +187,15 @@ class ManageSessions extends Component
             SessionQuestion::insert($payload);
         }
 
+        $usedGroupIds = Question::query()
+            ->whereIn('id', $orderedIds)
+            ->distinct()
+            ->pluck('question_group_id')
+            ->filter()
+            ->values();
+
         $session->update([
-            'question_group_id' => $groupId,
+            'question_group_id' => $usedGroupIds->count() === 1 ? (int) $usedGroupIds->first() : null,
             'questions_total' => count($orderedIds),
         ]);
 
@@ -239,11 +252,17 @@ class ManageSessions extends Component
     /**
      * @return array<int>|null
      */
-    protected function resolveCompositionQuestionIds(int $groupId): ?array
+    protected function resolveCompositionQuestionIds(?int $groupId): ?array
     {
         $mode = $this->questionPickMode;
 
         if ($mode === 'random') {
+            if (! $groupId) {
+                $this->addError('compositionQuestionGroupId', 'Selecciona una categoría para el modo aleatorio.');
+
+                return null;
+            }
+
             $totalAvailable = $this->basePoolQuery($groupId)->count();
             if ($totalAvailable === 0) {
                 $this->addError('compositionQuestionGroupId', 'No hay preguntas disponibles en la categoría seleccionada.');
@@ -261,7 +280,7 @@ class ManageSessions extends Component
         }
 
         if ($mode === 'manual') {
-            $ordered = $this->filterValidOrderedIds($groupId);
+            $ordered = $this->filterValidOrderedIds();
             if ($ordered === null) {
                 return null;
             }
@@ -275,7 +294,7 @@ class ManageSessions extends Component
             return $ordered;
         }
 
-        $fixed = $this->filterValidOrderedIds($groupId);
+        $fixed = $this->filterValidOrderedIds();
         if ($fixed === null) {
             return null;
         }
@@ -288,12 +307,18 @@ class ManageSessions extends Component
             return null;
         }
 
-        $randomBase = $this->basePoolQuery($groupId);
-        if ($fixed !== []) {
-            $randomBase->whereNotIn('id', $fixed);
+        if ($extra > 0 && ! $groupId) {
+            $this->addError('compositionQuestionGroupId', 'Selecciona una categoría para completar con aleatorias.');
+
+            return null;
         }
 
-        $availableForRandom = $randomBase->count();
+        $randomBase = $groupId ? $this->basePoolQuery($groupId) : null;
+        if ($fixed !== []) {
+            $randomBase?->whereNotIn('id', $fixed);
+        }
+
+        $availableForRandom = $randomBase?->count() ?? 0;
 
         if ($extra > $availableForRandom) {
             $this->addError(
@@ -305,7 +330,7 @@ class ManageSessions extends Component
         }
 
         $randomIds = $extra > 0
-            ? $randomBase->clone()->inRandomOrder()->take($extra)->pluck('id')->all()
+            ? ($randomBase?->clone()->inRandomOrder()->take($extra)->pluck('id')->all() ?? [])
             : [];
 
         $this->form->questions_total = count($fixed) + count($randomIds);
@@ -324,7 +349,7 @@ class ManageSessions extends Component
     /**
      * @return array<int>|null
      */
-    protected function filterValidOrderedIds(int $groupId): ?array
+    protected function filterValidOrderedIds(?int $groupId = null): ?array
     {
         $ids = array_values(array_unique(array_map('intval', $this->selectedQuestionIds)));
 
@@ -333,7 +358,7 @@ class ManageSessions extends Component
         }
 
         $validRows = Question::query()
-            ->where('question_group_id', $groupId)
+            ->when($groupId, fn ($q) => $q->where('question_group_id', $groupId))
             ->whereIn('id', $ids)
             ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', Auth::id()))
             ->whereHas('group', fn ($gq) => $gq->accessibleFor(Auth::user()))
@@ -345,7 +370,7 @@ class ManageSessions extends Component
         $ordered = [];
         foreach ($ids as $id) {
             if (! isset($validSet[$id])) {
-                $this->addError('selectedQuestionIds', 'Hay preguntas inválidas o que no pertenecen a esta categoría.');
+                $this->addError('selectedQuestionIds', 'Hay preguntas inválidas o sin acceso para tu usuario.');
 
                 return null;
             }

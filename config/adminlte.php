@@ -369,16 +369,10 @@ return [
             'can'     => 'sessions.manage',
         ],
         [
-            'text'  => 'Banco de Preguntas',
+            'text'  => 'Banco de preguntas',
             'route' => 'questions.index',
-            'icon'  => 'fas fa-question-circle',
-            'can'   => 'questions.manage', // nuevo permiso
-        ],
-        [
-            'text'  => 'Grupos de preguntas',
-            'route' => 'question-groups.index',   // 🔹 ruta Livewire
-            'icon'  => 'fas fa-layer-group',
-            'can' => 'questions.manage-groups',
+            'icon'  => 'fas fa-database',
+            'can'   => 'questions.manage',
         ],
         ['header' => 'OPCIONES GENERALES'],
         [

@@ -409,3 +409,25 @@
 /**********END**********/
 /* Responsive (dos columnas en ≥ md si quieres) */
 /* @media (min-width: 768px) { .options-wrap { grid-template-columns: 1fr 1fr; grid-column-gap: .8rem; } } */
+
+/* Checkboxes visibles en modal de composición */
+.session-question-check {
+    width: 1.05rem;
+    height: 1.05rem;
+    min-width: 1.05rem;
+    margin-top: 0.15rem;
+    accent-color: #0d6efd;
+    border: 1px solid #6c757d;
+    background-color: #fff;
+    opacity: 1;
+}
+
+.dark-mode .session-question-check {
+    accent-color: #4f8cff;
+    border-color: #8aa0c8;
+    background-color: #1e2a43;
+}
+
+.session-question-row .form-check-label {
+    margin-left: 0.1rem;
+}
