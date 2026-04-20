@@ -89,7 +89,7 @@
                             Editar
                         </button>
                         <button class="btn btn-sm btn-primary" wire:click="run({{ $s->id }})">
-                            Ejecutar
+                            Ingresar
                         </button>
 
                         <button class="btn btn-sm btn-outline-danger"
