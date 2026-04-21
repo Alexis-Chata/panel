@@ -62,7 +62,7 @@ class UserRoleSeeder extends Seeder
         );
 
         $student = User::firstOrCreate(
-            ['email' => 'anonimo@gmail.com'],
+            ['email' => 'milagros@gmail.com'],
             ['name' => 'Milagros Calcina', 'password' => Hash::make('milagros')]
         );
 
