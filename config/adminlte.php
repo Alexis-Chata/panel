@@ -30,7 +30,7 @@ return [
     |
     */
 
-    'use_ico_only' => false,
+    'use_ico_only' => true,
     'use_full_favicon' => false,
 
     /*
@@ -369,12 +369,26 @@ return [
             'can'     => 'sessions.manage',
         ],
         [
-            'text'  => 'Banco de Preguntas',
+            'text'  => 'Banco de preguntas',
             'route' => 'questions.index',
-            'icon'  => 'fas fa-question-circle',
-            'can'   => 'questions.manage', // nuevo permiso
+            'icon'  => 'fas fa-database',
+            'can'   => 'questions.manage',
         ],
-
+        ['header' => 'OPCIONES GENERALES'],
+        [
+            'text'    => 'Configuraciones',
+            'icon'    => 'fas fa-cogs',
+            'can' => 'admin.configuracion.titulo',
+            'submenu' =>
+            [
+                [
+                    'text' => 'Ajustes de Sistemas',
+                    'icon'    => 'fas fa-cog',
+                    'route'  => 'admin.configuracion.index',
+                    'can'  => 'admin.configuracion.titulo',
+                ],
+            ],
+        ],
         // Puedes añadir más secciones/links según crezca el proyecto.
     ],
 

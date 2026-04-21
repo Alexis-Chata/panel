@@ -4,7 +4,11 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-
+        @php
+            $favPath = 'favicons/favicon.ico';
+            $v = file_exists(public_path($favPath)) ? filemtime(public_path($favPath)) : time(); // cache-bust
+        @endphp
+        <link rel="icon" type="image/x-icon" href="{{ asset($favPath) }}?v={{ $v }}">
         <title>{{ config('app.name', 'Laravel') }}</title>
 
         <!-- Fonts -->

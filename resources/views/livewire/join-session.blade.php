@@ -48,7 +48,7 @@
                                         </span>
                                     </div>
                                     <input id="code" type="text" class="form-control code-input"
-                                        placeholder="ABC123" maxlength="6" pattern="[A-Za-z0-9]{6}"
+                                        placeholder="ABC123DEF456" maxlength="12" pattern="[A-Za-z0-9]{12}"
                                         autocomplete="one-time-code" inputmode="latin"
                                         style="text-transform: uppercase;" wire:model.defer="code"
                                         x-on:input="formatCode($event)" x-on:keydown.enter.prevent="$wire.join()">
@@ -80,7 +80,7 @@
                                 <details>
                                     <summary class="text-muted">¿Problemas para entrar?</summary>
                                     <ul class="small pl-3 mt-2 mb-0 text-muted">
-                                        <li>Verifica que el código tenga 6 caracteres (letras y números).</li>
+                                        <li>Verifica que el código tenga 12 caracteres (letras y números).</li>
                                         <li>Asegúrate de tener buena conexión a Internet.</li>
                                         <li>Si ves “Reconectando…”, espera unos segundos y reintenta.</li>
                                     </ul>
@@ -131,7 +131,8 @@
                                 this.state = current;
                             });
                         } catch (e) {
-                            /* silencioso */ }
+                            /* silencioso */
+                        }
                     },
 
                     stateLabel() {
@@ -163,7 +164,7 @@
                     formatCode(e) {
                         // Forzar mayúsculas y quitar espacios
                         const el = e.target;
-                        let v = (el.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+                        let v = (el.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12); // 👈 ahora 12
                         if (el.value !== v) el.value = v;
                     },
 

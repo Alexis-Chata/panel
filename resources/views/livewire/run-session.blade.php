@@ -1,5 +1,5 @@
 <div x-data
-     x-on:countdown.window="
+    x-on:countdown.window="
         const action = ($event.detail && $event.detail.action) || 'advance';
         let el = document.getElementById('countdown-box');
         el.classList.remove('d-none');
@@ -24,8 +24,7 @@
         <span id="run-state" class="d-none"
             data-started="{{ optional($gameSession->current_q_started_at)->toIso8601String() }}"
             data-duration="{{ (int) ($current?->timer_override ?? $gameSession->timer_default) }}"
-            data-paused="{{ $gameSession->is_paused ? 1 : 0 }}"
-            data-running="{{ $gameSession->is_running ? 1 : 0 }}"
+            data-paused="{{ $gameSession->is_paused ? 1 : 0 }}" data-running="{{ $gameSession->is_running ? 1 : 0 }}"
             data-index="{{ $gameSession->current_q_index }}">
         </span>
         <div class="card-body">
@@ -46,22 +45,21 @@
                     </button>
 
                     @php
-                        $finished    = (!$gameSession->is_active && $gameSession->current_q_index >= $gameSession->questions_total);
-                        $hasStarted  = (bool) ($gameSession->is_running || !is_null($gameSession->current_q_started_at));
+                        $finished =
+                            !$gameSession->is_active && $gameSession->current_q_index >= $gameSession->questions_total;
+                        $hasStarted = (bool) ($gameSession->is_running || !is_null($gameSession->current_q_started_at));
                         // Si agregaste la propiedad $countdownActive en el componente:
-                        $uiStarted   = (isset($countdownActive) && $countdownActive) || $hasStarted;
+                        $uiStarted = (isset($countdownActive) && $countdownActive) || $hasStarted;
 
                         // Mostrar "Iniciar" solo antes de empezar y si no está finalizado
-                        $showStart   = (!$uiStarted && !$finished && $gameSession->current_q_index < $gameSession->questions_total);
+                        $showStart =
+                            !$uiStarted && !$finished && $gameSession->current_q_index < $gameSession->questions_total;
                     @endphp
 
                     {{-- Al inicio: solo "Iniciar" (deshabilitado si no hay participantes) --}}
                     @if ($showStart)
-                        <button
-                            class="btn btn-outline-primary btn-sm"
-                            wire:click="start"
-                            @if ($pCount < 1) disabled title="Esperando participantes…" @endif
-                        >
+                        <button class="btn btn-outline-primary btn-sm" wire:click="start"
+                            @if ($pCount < 1) disabled title="Esperando participantes…" @endif>
                             <i class="fas fa-play mr-1"></i> Iniciar
                         </button>
                     @endif
@@ -71,7 +69,14 @@
                         <button class="btn btn-outline-secondary btn-sm" wire:click="togglePause">
                             {{ $gameSession->is_paused ? 'Reanudar' : 'Pausar' }}
                         </button>
+                        <button class="btn btn-outline-success btn-sm" wire:click="extendTime(15)">
+                            +15s
+                        </button>
 
+                        <button class="btn btn-outline-danger btn-sm" wire:click="reduceTime(5)"
+                            wire:confirm="¿Reducir el tiempo en 5 segundos?">
+                            −5s
+                        </button>
                         {{-- Revelar + Pausa solo cuando está corriendo y no está en pausa --}}
                         @if ($gameSession->is_running && !$gameSession->is_paused)
                             <button class="btn btn-outline-info btn-sm" wire:click="revealAndPause">
@@ -128,6 +133,9 @@
                             @endif
                         </div>
                     </div>
+                    <span class="badge badge-info">
+                        Respondidos (activos): {{ $answered }} / {{ $pCount }}
+                    </span>
                 </div>
 
                 <div class="col-md-4">
@@ -160,36 +168,159 @@
                 <div class="row">
                     <div class="col-md-8">
                         <h5 class="mb-3">Pregunta</h5>
-                    <div class="lead ck-content">
-                        {!! $current->question->statement !!}
-                    </div>
+                        <div class="lead ck-content">
+                            {!! $current->question->statement !!}
+                        </div>
                         <div class="small text-muted">
                             Tiempo por pregunta: <strong>{{ $current->timer_override ?? $gameSession->timer_default }}
                                 s</strong>
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <h6>Alternativas</h6>
-                        <ul class="list-group">
-                            @foreach ($current->question->options->sortBy('opt_order') as $opt)
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div><strong>{{ $opt->label }}.</strong> {{ $opt->content }}</div>
-                                    @if ($gameSession->is_paused && $opt->is_correct)
-                                        <span class="badge badge-success">Correcta</span>
-                                    @endif
-                                </li>
-                            @endforeach
-                        </ul>
-                        @if ($gameSession->is_paused && ($current->feedback_override ?? $current->question->feedback))
-                            <div class="alert alert-info mt-3">
-                                {!! nl2br(e($current->feedback_override ?? $current->question->feedback)) !!}
+                        {{-- SI NO es short, se muestran las alternativas como siempre --}}
+                        @if ($current->question->qtype !== 'short')
+                            <h6>Alternativas</h6>
+                            <ul class="list-group">
+                                @foreach ($current->question->options->sortBy('opt_order') as $opt)
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div><strong>{{ $opt->label }}.</strong> {{ $opt->content }}</div>
+                                        @if ($gameSession->is_paused && $opt->is_correct)
+                                            <span class="badge badge-success">Correcta</span>
+                                        @endif
+                                    </li>
+                                @endforeach
+                            </ul>
+
+                            @if ($gameSession->is_paused && ($current->feedback_override ?? $current->question->feedback))
+                                <div class="alert alert-info mt-3">
+                                    {!! nl2br(e($current->feedback_override ?? $current->question->feedback)) !!}
+                                </div>
+                            @endif
+
+                            {{-- SI es short, se muestran las respuestas escritas --}}
+                        @else
+                            <h6>Respuestas de participantes</h6>
+                            <div class="table-responsive" style="max-height: 320px; overflow-y:auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Participante</th>
+                                            <th>Respuesta</th>
+                                            <th>Estado</th>
+                                            <th class="text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse($shortAnswers as $ans)
+                                            @php
+                                                $p = $shortParticipants[$ans->session_participant_id] ?? null;
+                                                $nombre =
+                                                    $p->nickname ??
+                                                    ($p->user->name ?? 'Participante #' . $ans->session_participant_id);
+                                            @endphp
+                                            <tr>
+                                                <td>{{ $nombre }}</td>
+                                                <td style="white-space: pre-wrap; max-width: 260px;">
+                                                    {{ $ans->text }}
+                                                </td>
+                                                <td>
+                                                    @if ($ans->is_correct)
+                                                        <span class="badge badge-success">Correcta</span>
+                                                    @elseif (is_null($ans->graded_at))
+                                                        <span class="badge badge-warning text-dark">Pendiente de
+                                                            calificar</span>
+                                                    @else
+                                                        <span class="badge badge-secondary">Incorrecta</span>
+                                                    @endif
+                                                </td>
+                                                <td class="text-right text-nowrap">
+                                                    <button class="btn btn-xs btn-outline-success"
+                                                        wire:click="markShortCorrect({{ $ans->id }}, true)">
+                                                        ✓ Correcta
+                                                    </button>
+                                                    <button class="btn btn-xs btn-outline-danger"
+                                                        wire:click="markShortCorrect({{ $ans->id }}, false)">
+                                                        ✗ Incorrecta
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="4"><em>No hay respuestas enviadas aún.</em></td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
                             </div>
+
+                            @if ($gameSession->is_paused && ($current->feedback_override ?? $current->question->feedback))
+                                <div class="alert alert-info mt-3">
+                                    {!! nl2br(e($current->feedback_override ?? $current->question->feedback)) !!}
+                                </div>
+                            @endif
                         @endif
                     </div>
                 </div>
             @else
                 <div class="alert alert-info mb-0">No hay pregunta en el índice actual.</div>
             @endif
+
+            {{-- LISTA COMPLETA DE PARTICIPANTES (SEO friendly) --}}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <section aria-label="Lista de participantes de la partida">
+                        <div class="card shadow-sm">
+                            <div class="card-body py-2">
+                                <h2 class="h5 mb-2">
+                                    Participantes en la partida: {{ $gameSession->title ?? 'Juego' }}
+                                </h2>
+                                <p class="small text-muted mb-2">
+                                    Actualmente hay <strong>{{ $participants->count() }}</strong>
+                                    jugador(es) conectado(s) a esta sesión (código
+                                    <strong>{{ strtoupper($gameSession->code) }}</strong>).
+                                </p>
+
+                                <ul class="list-group list-group-flush">
+                                    @forelse($participants as $i => $part)
+                                        <li
+                                            class="list-group-item py-1 d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <span class="text-muted small">#{{ $i + 1 }}</span>
+                                                <strong class="ml-1">
+                                                    {{ $part->nickname ?? ($part->user?->name ?? 'Jugador ' . ($i + 1)) }}
+                                                </strong>
+                                                @if ($part->is_ignored)
+                                                    <span class="badge badge-warning ml-2">Inactivo</span>
+                                                @endif
+                                            </div>
+                                            <div class="small text-nowrap">
+                                                <span class="badge badge-primary">
+                                                    {{ $part->score }} pts
+                                                </span>
+                                                <span class="badge badge-light">
+                                                    {{ number_format($part->time_total_ms / 1000, 2) }} s
+                                                </span>
+                                            </div>
+                                            <div class="btn-group btn-group-sm">
+                                                <button
+                                                    class="btn btn-outline-{{ $part->is_ignored ? 'success' : 'secondary' }}"
+                                                    wire:click="toggleIgnore({{ $part->id }})">
+                                                    {{ $part->is_ignored ? 'Reactivar' : 'Ignorar' }}
+                                                </button>
+                                            </div>
+                                        </li>
+                                    @empty
+                                        <li class="list-group-item py-1">
+                                            Todavía no hay participantes registrados en esta partida.
+                                        </li>
+                                    @endforelse
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
         </div>
     </div>
     {{-- Modal: QR para unirse --}}
@@ -235,140 +366,193 @@
 
 </div>
 @once
-@push('js')
-    <script>
-        (function () {
-            let lastKeySent = null;
+    @push('js')
+        <script src="{{ asset('js/sweetalert2@11.js') }}"></script>
+        <script>
+            (function() {
+                let lastKeySent = null;
 
-            function tickTimeoutRun() {
-                const el = document.getElementById('run-state');
-                if (!el) return;
+                function tickTimeoutRun() {
+                    const el = document.getElementById('run-state');
+                    if (!el) return;
 
-                const running = el.dataset.running === '1';
-                const paused  = el.dataset.paused  === '1';
-                const started = el.dataset.started;
-                const dur     = parseInt(el.dataset.duration || '0', 10);
-                const index   = el.dataset.index || '';
+                    const running = el.dataset.running === '1';
+                    const paused = el.dataset.paused === '1';
+                    const started = el.dataset.started;
+                    const dur = parseInt(el.dataset.duration || '0', 10);
+                    const index = el.dataset.index || '';
 
-                if (!running || paused || !started || !dur) return;
+                    if (!running || paused || !started || !dur) return;
 
-                const t0 = Date.parse(started);
-                if (isNaN(t0)) return;
+                    const t0 = Date.parse(started);
+                    if (isNaN(t0)) return;
 
-                const elapsed = Math.max(0, (Date.now() - t0) / 1000);
-                const left    = Math.ceil(dur - elapsed);
+                    const elapsed = Math.max(0, (Date.now() - t0) / 1000);
+                    const left = Math.ceil(dur - elapsed);
 
-                if (left <= 0) {
-                    const key = index + '|' + started;
-                    if (lastKeySent !== key) {
-                        lastKeySent = key;
-                        // Dispara al componente Livewire (listener #[On('checkTimeout')])
-                        window.Livewire?.dispatch('checkTimeout');
+                    if (left <= 0) {
+                        const key = index + '|' + started;
+                        if (lastKeySent !== key) {
+                            lastKeySent = key;
+                            // Dispara al componente Livewire (listener #[On('checkTimeout')])
+                            window.Livewire?.dispatch('checkTimeout');
+                        }
                     }
                 }
-            }
 
-            // Revisa 2x por segundo
-            setInterval(tickTimeoutRun, 500);
-        })();
-    </script>
+                // Revisa 2x por segundo
+                setInterval(tickTimeoutRun, 500);
+            })
+            ();
+        </script>
 
-    <script>
-        window.addEventListener('livewire:init', () => {
-            const sid = @json($gameSession->id);
-
-            function ready() {
-                return window.Livewire && window.Echo;
-            }
-
-            function ensure() {
-                if (!ready()) return setTimeout(ensure, 100);
-                window.__panelSubs ??= {};
-                const key = 'run-' + sid;
-                if (window.__panelSubs[key]) return;
-                window.__panelSubs[key] = true;
-
-                window.Echo.private(`session.${sid}`)
-                    .listen('.GameSessionStateChanged', () => Livewire.dispatch('syncState'))
-                    .listen('.AnswerSubmitted', () => Livewire.dispatch('refreshStats'));
-            }
-            ensure();
-
-            window.Echo.join(`game-session.${sid}`)
-                .here((users) => {
-                    // Usuarios presentes al cargar
-                    console.log('Presentes:', users);
-                })
-                .joining((user) => {
-                    // Usuario acaba de conectarse al canal
-                    console.log('Se unió (presence):', user);
-                })
-                .leaving((user) => {
-                    // Usuario se fue del canal
-                    console.log('Salió (presence):', user);
-                })
-                .listen('.participant.joined', (e) => {
-                    // Tu evento custom: llega con { participant, total, joined_at }
-                    console.log('Evento participant.joined', e);
-                    // Aquí puedes actualizar contadores, listas, toasts, etc.
-                    // Por ejemplo:
-                    // document.getElementById('total-participants').innerText = e.total;
-                    window.Livewire?.dispatch('render');
-                });
-        });
-    </script>
-    {{-- Librería liviana de QR (frontend) --}}
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <script>
-        (function() {
-            // Bind delegados y con namespace para evitar duplicados
-            $(document)
-                .off('shown.bs.modal.qr', '#qrJoinModal')
-                .on('shown.bs.modal.qr', '#qrJoinModal', function() {
-                    // Toma el link actual del DOM (no dependemos de variables PHP aquí)
-                    var joinUrl = (document.getElementById('joinLink')?.textContent || '').trim();
-
-                    // Re-genera el QR limpio cada vez que se abre el modal
-                    var el = document.getElementById('qrCanvas');
-                    if (el) {
-                        el.innerHTML = '';
-                        new QRCode(el, {
-                            text: joinUrl,
-                            width: 260,
-                            height: 260,
-                            correctLevel: QRCode.CorrectLevel.M
+        <script>
+            window.addEventListener('livewire:init', () => {
+                Livewire.on('run-confirm-start', () => {
+                    if (window.Swal) {
+                        Swal.fire({
+                            title: '¿Seguro que deseas comenzar la partida?',
+                            text: 'Se iniciará el conteo y los estudiantes verán la pregunta.',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'Sí, iniciar',
+                            cancelButtonText: 'Cancelar',
+                            reverseButtons: true
+                        }).then((res) => {
+                            if (res.isConfirmed) {
+                                Livewire.dispatch('run-start-confirmed');
+                            }
                         });
+                    } else if (confirm('¿Seguro que deseas comenzar la partida?')) {
+                        Livewire.dispatch('run-start-confirmed');
                     }
                 });
 
-            $(document)
-                .off('click.qr', '#copyJoinLink')
-                .on('click.qr', '#copyJoinLink', function(e) {
-                    e.preventDefault();
-                    var txt = (document.getElementById('joinLink')?.textContent || '').trim();
-                    if (!txt) return;
+                Livewire.on('run-short-needs-grading', () => {
+                    if (window.Swal) {
+                        Swal.fire({
+                            title: 'Califica la pregunta antes de continuar',
+                            text: 'Hay respuestas abiertas pendientes de calificación.',
+                            icon: 'info',
+                            confirmButtonText: 'Entendido'
+                        });
+                    } else {
+                        alert('Califica la pregunta antes de continuar.');
+                    }
+                });
 
-                    navigator.clipboard.writeText(txt).then(function() {
-                        // Feedback sin duplicados
-                        if (!window.__qrCopiedAck) {
-                            window.__qrCopiedAck = true;
-                            alert('Enlace copiado');
-                            setTimeout(function() {
-                                window.__qrCopiedAck = false;
-                            }, 600);
+                const sid = @json($gameSession->id);
+
+                function ready() {
+                    return window.Livewire && window.Echo;
+                }
+
+                function ensure() {
+                    if (!ready()) return setTimeout(ensure, 100);
+                    window.__panelSubs ??= {};
+                    const key = 'run-' + sid;
+                    if (window.__panelSubs[key]) return;
+                    window.__panelSubs[key] = true;
+
+                    window.Echo.private(`session.${sid}`)
+                        .listen('.GameSessionStateChanged', () => Livewire.dispatch('syncState'))
+                        .listen('.AnswerSubmitted', () => Livewire.dispatch('refreshStats'));
+                }
+                ensure();
+
+                window.Echo.join(`game-session.${sid}`)
+                    .here((users) => {
+                        // Usuarios presentes al cargar
+                        console.log('Presentes:', users);
+                    })
+                    .joining((user) => {
+                        // Usuario acaba de conectarse al canal
+                        console.log('Se unió (presence):', user);
+                    })
+                    .leaving((user) => {
+                        // Usuario se fue del canal
+                        console.log('Salió (presence):', user);
+                    })
+                    .listen('.participant.joined', (e) => {
+                        // Tu evento custom: llega con { participant, total, joined_at }
+                        console.log('Evento participant.joined', e);
+                        // Aquí puedes actualizar contadores, listas, toasts, etc.
+                        // Por ejemplo:
+                        // document.getElementById('total-participants').innerText = e.total;
+                        window.Livewire?.dispatch('render');
+                    });
+            });
+        </script>
+        {{-- Librería liviana de QR (frontend) --}}
+        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+        <script>
+            (function() {
+                // Bind delegados y con namespace para evitar duplicados
+                $(document)
+                    .off('shown.bs.modal.qr', '#qrJoinModal')
+                    .on('shown.bs.modal.qr', '#qrJoinModal', function() {
+                        // Toma el link actual del DOM (no dependemos de variables PHP aquí)
+                        var joinUrl = (document.getElementById('joinLink')?.textContent || '').trim();
+
+                        // Re-genera el QR limpio cada vez que se abre el modal
+                        var el = document.getElementById('qrCanvas');
+                        if (el) {
+                            el.innerHTML = '';
+                            new QRCode(el, {
+                                text: joinUrl,
+                                width: 260,
+                                height: 260,
+                                correctLevel: QRCode.CorrectLevel.M
+                            });
                         }
                     });
-                });
-        })();
-    </script>
-@endpush
-@push('css')
-    <style>
-    .ck-content figure.media { display:block; max-width:100%; margin:1rem 0; }
-    .ck-content figure.media > div { position:relative !important; width:100% !important; padding-bottom:56.25% !important; height:0 !important; }
-    .ck-content figure.media iframe { position:absolute !important; top:0; left:0; width:100% !important; height:100% !important; display:block !important; }
-    /* Por si el editor guardó solo <oembed>, lo transformaremos con JS (abajo). */
-    </style>
-@endpush
 
+                $(document)
+                    .off('click.qr', '#copyJoinLink')
+                    .on('click.qr', '#copyJoinLink', function(e) {
+                        e.preventDefault();
+                        var txt = (document.getElementById('joinLink')?.textContent || '').trim();
+                        if (!txt) return;
+
+                        navigator.clipboard.writeText(txt).then(function() {
+                            // Feedback sin duplicados
+                            if (!window.__qrCopiedAck) {
+                                window.__qrCopiedAck = true;
+                                alert('Enlace copiado');
+                                setTimeout(function() {
+                                    window.__qrCopiedAck = false;
+                                }, 600);
+                            }
+                        });
+                    });
+            })();
+        </script>
+    @endpush
+    @push('css')
+        <style>
+            .ck-content figure.media {
+                display: block;
+                max-width: 100%;
+                margin: 1rem 0;
+            }
+
+            .ck-content figure.media>div {
+                position: relative !important;
+                width: 100% !important;
+                padding-bottom: 56.25% !important;
+                height: 0 !important;
+            }
+
+            .ck-content figure.media iframe {
+                position: absolute !important;
+                top: 0;
+                left: 0;
+                width: 100% !important;
+                height: 100% !important;
+                display: block !important;
+            }
+
+            /* Por si el editor guardó solo <oembed>, lo transformaremos con JS (abajo). */
+        </style>
+    @endpush
 @endonce

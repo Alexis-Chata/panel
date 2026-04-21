@@ -12,6 +12,7 @@ class SessionParticipant extends Model
         'nickname',
         'score',
         'time_total_ms',
+        'is_ignored',
     ];
 
     public function session()
@@ -28,4 +29,8 @@ class SessionParticipant extends Model
     {
         return $this->hasMany(Answer::class);
     }
+
+    protected $casts = [
+        'is_ignored' => 'bool',
+    ];
 }

@@ -19,8 +19,11 @@ return new class extends Migration
             $table->boolean('is_correct')->default(false);
             $table->unsignedInteger('time_ms')->default(0);
             $table->timestamp('answered_at')->nullable();
-            $table->unique(['session_participant_id', 'session_question_id']);
+            $table->text('text')->nullable();        // lo que escribió el jugador
+            $table->unsignedBigInteger('matched_id')->nullable(); // id en question_short_answers
+            $table->float('score')->default(0);      // 0..1
             $table->timestamps();
+            $table->unique(['session_participant_id', 'session_question_id']);
             $table->index('session_question_id');
         });
     }

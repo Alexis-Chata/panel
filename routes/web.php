@@ -7,10 +7,10 @@ use App\Exports\GameSessionResultsExport;
 use App\Http\Controllers\UploadController;
 use App\Livewire\Dashboard;
 use App\Livewire\JoinSession;
-use App\Livewire\ManageQuestions;
 use App\Livewire\ManageSessions;
 use App\Livewire\PlayBasic;
 use App\Livewire\PlayFullscreen;
+use App\Livewire\QuestionBank;
 use App\Livewire\RunSession;
 use App\Livewire\ScreenDisplay;
 use App\Livewire\WinnersView;
@@ -26,7 +26,6 @@ use Maatwebsite\Excel\Facades\Excel;
 Route::get('/welcome', function () {
     return view('welcome');
 })->name('home');
-
 Route::get('/ping', function () {
     TestEvent::dispatch(['ok' => now()->toDateTimeString()]);
     event(new PingTest('hola desde /ping'));
@@ -142,13 +141,18 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/sessions', ManageSessions::class)->name('sessions.index');
         Route::get('/sessions/{gameSession}/run', RunSession::class)->name('sessions.run');
     });
-    Route::get('/questions', ManageQuestions::class)
+    Route::get('/questions', QuestionBank::class)
         ->name('questions.index')
         ->middleware('role:Admin|Docente');
 
+    Route::middleware(['auth', 'role:Admin|Docente'])->group(function () {
+        Route::redirect('/question-groups', '/questions')
+            ->name('question-groups.index');
+    });
+
     Route::post('/ckeditor/upload', [UploadController::class, 'ckeditor'])
-    ->middleware(['auth']) // opcional
-    ->name('ckeditor.upload');
+        ->middleware(['auth']) // opcional
+        ->name('ckeditor.upload');
 
     Route::get('/questions/template/csv', function () {
         $csv = "statement,feedback,A,B,C,D,correct\n";

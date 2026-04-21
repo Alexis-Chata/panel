@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('nickname')->nullable();
             $table->unsignedSmallInteger('score')->default(0);
             $table->unsignedBigInteger('time_total_ms')->default(0);
+            $table->boolean('is_ignored')->default(false);
             $table->unique(['game_session_id', 'user_id']);
             $table->timestamps();
             $table->index('game_session_id');

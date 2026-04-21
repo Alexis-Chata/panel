@@ -18,17 +18,18 @@ class DemoGameSeeder extends Seeder
     {
         $total = min(10, \App\Models\Question::count());
         $session = GameSession::create([
-            'code' => Str::upper(Str::random(6)),
+            'code' => Str::upper(Str::random(12)),
             'title' => 'Demo Panel Básico',
             'phase_mode' => 'basic',
             'questions_total' => $total,
             'timer_default' => 25,
-            'student_view_mode' => 'choices_only', // choices_only, full
+            'student_view_mode' => 'solo_alternativas', // choices_only, full
             'is_active' => true,
             'is_running' => false,
             'current_q_index' => 0,
             'is_paused' => false,
             'starts_at' => now(),
+            'question_group_id' => 1,
         ]);
 
         $questions = Question::inRandomOrder()->take($total)->get();
