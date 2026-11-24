@@ -35,7 +35,12 @@
                     <td>
                     <span class="badge badge-secondary">{{ $s->code }}</span>
                     </td>
-                    <td>{{ $s->title }}</td>
+                    <td>
+                        {{ $s->title }}
+                        <div class="small text-muted">
+                            {{ $s->owner?->name ?? 'Institucional' }}
+                        </div>
+                    </td>
                     <td class="text-center">
                         @php
                             $active = (bool) $s->is_active;

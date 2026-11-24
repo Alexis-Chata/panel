@@ -130,6 +130,7 @@ class GameSessionForm extends Form
             'is_paused' => false,
             'starts_at' => null,
             'question_group_id' => null,
+            'user_id' => auth()->id(),
         ]);
 
         return $this->gameSession;
@@ -156,7 +157,14 @@ class GameSessionForm extends Form
 
         $data = $this->validatePayload();
 
-        $this->gameSession->update($data);
+        // Solo campos editables desde el modal. El estado de juego (is_running, current_q_index,
+        // current_q_started_at, ...) lo controla la pantalla RUN: si se reescribiera con los valores
+        // que tenía el modal al abrirse, una partida en curso retrocedería de pregunta.
+        $this->gameSession->update(collect($data)->only([
+            'title',
+            'timer_default',
+            'student_view_mode',
+        ])->all());
 
         return ['status' => 'success', 'message' => 'Sesión de juego actualizada correctamente.'];
     }

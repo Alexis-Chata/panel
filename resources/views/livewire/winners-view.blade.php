@@ -1,5 +1,5 @@
 <div class="card">
-    @role('Admin|Docente')
+    @if ($gameSession->isManageableBy(auth()->user()) && auth()->user()->can('sessions.export'))
         <div class="m-3">
             <a href="{{ route('sessions.export.excel', $gameSession) }}" class="btn btn-outline-success btn-sm">
                 <i class="fas fa-file-excel mr-1"></i> Resultados (Excel)
@@ -14,7 +14,7 @@
                 <i class="fas fa-chart-pie mr-1"></i> Analítico (PDF)
             </a>
         </div>
-    @endrole
+    @endif
 
     <div class="card-body">
         <h5 class="mb-3">Top 10</h5>

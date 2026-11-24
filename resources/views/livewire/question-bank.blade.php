@@ -227,6 +227,13 @@
                     <a href="{{ route('questions.template.csv') }}" class="btn btn-outline-secondary btn-sm mr-2 mb-2">
                         <i class="fas fa-download mr-1"></i> Plantilla CSV
                     </a>
+                    <select class="form-control form-control-sm mr-2 mb-2" style="max-width:260px;"
+                        wire:model="import_group_id">
+                        <option value="">— Categoría destino —</option>
+                        @foreach ($flatGroups as $id => $label)
+                            <option value="{{ $id }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
                     <div class="custom-file mr-2 mb-2" style="max-width:340px;">
                         <input type="file" class="custom-file-input" id="fileImport" wire:model="file"
                             accept=".csv,.xlsx,.txt">
@@ -238,7 +245,10 @@
                         <i class="fas fa-file-import mr-1"></i> Importar
                     </button>
                 </div>
-                <small class="text-muted d-block">Las filas se importan a la primera categoría disponible de tu banco (configura categorías antes).</small>
+                <small class="text-muted d-block">Las filas se importan a la categoría elegida (o a la del filtro de arriba). Si alguna fila tiene errores, no se importa ninguna.</small>
+                @error('import_group_id')
+                    <div class="text-danger mt-2">{{ $message }}</div>
+                @enderror
                 @error('file')
                     <div class="text-danger mt-2">{{ $message }}</div>
                 @enderror

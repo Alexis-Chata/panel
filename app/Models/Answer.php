@@ -11,6 +11,8 @@ class Answer extends Model
         'session_question_id',
         'question_option_id',
         'text',
+        'matched_id',
+        'score',
         'is_correct',
         'time_ms',
         'answered_at',

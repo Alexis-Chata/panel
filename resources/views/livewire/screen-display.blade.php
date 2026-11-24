@@ -520,10 +520,17 @@
         };
 
         try {
+            // Agrupa ráfagas de respuestas en un solo refresco
+            let answerTimer = null;
+            const syncDebounced = () => {
+                clearTimeout(answerTimer);
+                answerTimer = setTimeout(() => call('syncState'), 500);
+            };
+
             const chan = window.Echo.private(`session.${sid}`);
             chan
                 .listen('.GameSessionStateChanged', () => call('syncState'))
-                .listen('.AnswerSubmitted',        () => call('syncState'))
+                .listen('.AnswerSubmitted',        syncDebounced)
                 .listen('.GameCountdownStarted',   (e) => {
                     const secs  = parseInt(e?.seconds || 3, 10);
                     const phase = e?.phase || 'start'; // 'start' | 'advance'

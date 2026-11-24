@@ -28,7 +28,7 @@
         {{-- 2) La partida existe pero AÚN NO ha iniciado --}}
     @elseif(!$gameSession->is_running)
         <div class="card lobby-card card-lift card-lift--dark">
-            <div class="card-body text-center" wire:poll.4s.keep-alive="refreshRoster">
+            <div class="card-body text-center" wire:poll.15s="refreshRoster">
                 <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
                     <span class="badge badge-secondary">
                         Q #{{ $gameSession->current_q_index + 1 }} / {{ $gameSession->questions_total }}
@@ -96,8 +96,8 @@
                     </div>
                 </div>
 
-                @if ($gameSession->student_view_mode === 'full')
-                    <h5 class="mb-3">{{ $current->question->statement }}</h5>
+                @if ($gameSession->student_view_mode === 'completo')
+                    <div class="mb-3 ck-content h5">{!! $current->question->statement !!}</div>
                 @endif
 
                 {{-- Alternativas (solo si no es short) --}}
@@ -198,11 +198,14 @@
 
                 // Suscríbete al canal privado y llama métodos del componente directamente
                 try {
+                    // Nota: no escuchamos AnswerSubmitted aquí; cada alumno haría un request por cada
+                    // respuesta de los demás (N² requests por pregunta) sin mostrar nada nuevo.
                     window.Echo.private(`session.${sid}`)
-                        .listen('.GameSessionStateChanged', () => callSafe('syncState'))
-                        .listen('.AnswerSubmitted', () => callSafe('refreshStats'))
-                        .listen('.ParticipantJoined', () => callSafe('refreshRoster'))
-                        .listen('.ParticipantLeft', () => callSafe('refreshRoster'));
+                        .listen('.GameSessionStateChanged', () => callSafe('syncState'));
+
+                    // Sala de espera: el evento real se emite en el canal presence como "participant.joined"
+                    window.Echo.join(`game-session.${sid}`)
+                        .listen('.participant.joined', () => callSafe('refreshRoster'));
                 } catch (e) {
                     console.warn('Suscripción WS falló, reintentando...', e);
                     window.__panelSubs[key] = false;

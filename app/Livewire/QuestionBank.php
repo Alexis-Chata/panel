@@ -6,8 +6,10 @@ use App\Imports\QuestionsImport;
 use App\Models\Question;
 use App\Models\QuestionGroup;
 use App\Models\QuestionOption;
+use App\Models\SessionQuestion;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -28,6 +30,9 @@ class QuestionBank extends Component
     public string $activeTab = 'questions';
 
     public $file;
+
+    /** Categoría destino de la importación */
+    public ?int $import_group_id = null;
 
     public string $questionSearch = '';
 
@@ -197,8 +202,9 @@ class QuestionBank extends Component
                 abort(403, 'Solo administración puede editar categorías institucionales.');
             }
 
-            if ($this->cat_parent_id === (int) $this->cat_id) {
-                $this->addError('cat_parent_id', 'La categoría no puede ser padre de sí misma.');
+            // Evita ciclos (A→B→A): el árbol se recorre recursivamente y un ciclo colgaría la página
+            if ($this->cat_parent_id && $this->isSelfOrDescendant((int) $this->cat_parent_id, (int) $this->cat_id)) {
+                $this->addError('cat_parent_id', 'La categoría no puede colgar de sí misma ni de una de sus subcategorías.');
 
                 return;
             }
@@ -212,6 +218,23 @@ class QuestionBank extends Component
 
         $this->showCategoryModal = false;
         $this->resetCategoryForm();
+    }
+
+    /** ¿$candidateId es $categoryId o uno de sus descendientes? */
+    protected function isSelfOrDescendant(int $candidateId, int $categoryId): bool
+    {
+        $parentOf = QuestionGroup::query()->pluck('parent_id', 'id');
+        $seen = [];
+
+        // Subimos desde el candidato hacia la raíz; si pasamos por $categoryId, hay ciclo
+        for ($id = $candidateId; $id && ! isset($seen[$id]); $id = $parentOf[$id] ?? null) {
+            if ($id === $categoryId) {
+                return true;
+            }
+            $seen[$id] = true;
+        }
+
+        return false;
     }
 
     public function confirmCategoryDelete(int $id): void
@@ -331,6 +354,15 @@ class QuestionBank extends Component
 
         $ownerId = $group->user_id;
 
+        DB::transaction(fn () => $this->persistQuestion($ownerId));
+
+        $this->resetQuestionForm();
+        $this->showQuestionModal = false;
+        session()->flash('ok', 'Pregunta guardada correctamente.');
+    }
+
+    protected function persistQuestion(?int $ownerId): void
+    {
         if ($this->q_id) {
             $q = Question::query()
                 ->where(function ($qq) {
@@ -351,7 +383,30 @@ class QuestionBank extends Component
                 'user_id' => $ownerId,
             ]);
 
-            $q->options()->delete();
+            if ($this->qtype !== 'multiple') {
+                $q->options()->delete();
+
+                return;
+            }
+
+            // Actualizar alternativas EN SITIO (por letra) en vez de borrarlas y recrearlas:
+            // las respuestas de partidas ya jugadas apuntan a estos IDs (antes quedaban en NULL
+            // y se perdía el historial / la distribución del analítico).
+            $existing = $q->options()->get()->keyBy('label');
+            foreach ($this->opts as $o) {
+                $q->options()->updateOrCreate(
+                    ['id' => $existing[$o['label']]->id ?? null],
+                    [
+                        'label' => $o['label'],
+                        'content' => $o['content'],
+                        'is_correct' => ! empty($o['is_correct']),
+                        'opt_order' => (int) $o['opt_order'],
+                    ]
+                );
+            }
+            $q->options()->whereNotIn('label', array_column($this->opts, 'label'))->delete();
+
+            return;
         } else {
             $q = Question::create([
                 'statement' => $this->statement,
@@ -373,10 +428,6 @@ class QuestionBank extends Component
                 ]);
             }
         }
-
-        $this->resetQuestionForm();
-        $this->showQuestionModal = false;
-        session()->flash('ok', 'Pregunta guardada correctamente.');
     }
 
     public function confirmQuestionDelete(int $id): void
@@ -402,6 +453,16 @@ class QuestionBank extends Component
             abort(403, 'Solo administración puede eliminar preguntas institucionales.');
         }
 
+        // session_questions.question_id tiene cascadeOnDelete (y answers también): borrar una pregunta
+        // usada en partidas eliminaba en silencio las respuestas y resultados de esas partidas.
+        $usedIn = SessionQuestion::where('question_id', $q->id)->distinct()->count('game_session_id');
+        if ($usedIn > 0) {
+            $this->q_id = null;
+            session()->flash('error', "No se puede eliminar: la pregunta se usa en {$usedIn} partida(s) y se perderían sus resultados.");
+
+            return;
+        }
+
         $q->delete();
         $this->q_id = null;
         session()->flash('ok', 'Pregunta eliminada.');
@@ -417,10 +478,24 @@ class QuestionBank extends Component
             return;
         }
 
+        $groupId = $this->import_group_id ?: $this->filter_group_id;
+        $group = $groupId
+            ? QuestionGroup::query()->accessibleFor(Auth::user())->find($groupId)
+            : null;
+
+        if (! $group) {
+            $this->addError('import_group_id', 'Elige la categoría donde se guardarán las preguntas.');
+
+            return;
+        }
+
+        // Mismo criterio que saveQuestion(): la pregunta hereda el dueño de su categoría
+        $importer = new QuestionsImport($group->id, $group->user_id);
+
         try {
-            Excel::import(new QuestionsImport, $this->file->getRealPath());
+            Excel::import($importer, $this->file->getRealPath());
         } catch (\Illuminate\Validation\ValidationException $e) {
-            $this->addError('file', $e->getMessage());
+            $this->addError('file', $e->validator->errors()->first('file') ?: $e->getMessage());
 
             return;
         } catch (\Throwable $e) {
@@ -431,7 +506,7 @@ class QuestionBank extends Component
         }
 
         $this->reset('file');
-        session()->flash('ok', 'Preguntas importadas correctamente.');
+        session()->flash('ok', "{$importer->imported} pregunta(s) importada(s) en «{$group->name}».");
     }
 
     protected function resetOptions(): void
@@ -455,34 +530,28 @@ class QuestionBank extends Component
     /** Jerarquía para selects (id => etiqueta indentada). */
     public function flatCategoryTree(): array
     {
-        $roots = QuestionGroup::query()
+        // UNA consulta y armado en memoria (antes: 1 consulta por cada categoría del árbol)
+        $byParent = QuestionGroup::query()
             ->accessibleFor(Auth::user())
-            ->whereNull('parent_id')
             ->orderBy('name')
-            ->get();
+            ->get(['id', 'name', 'parent_id', 'user_id'])
+            ->groupBy(fn ($g) => (int) $g->parent_id);
 
         $out = [];
-        foreach ($roots as $r) {
-            $this->walkCategoryBranch($r, 0, $out);
-        }
+        $this->walkCategoryBranch($byParent, 0, 0, $out, []);
 
         return $out;
     }
 
-    protected function walkCategoryBranch(QuestionGroup $node, int $depth, array &$out): void
+    protected function walkCategoryBranch($byParent, int $parentId, int $depth, array &$out, array $path): void
     {
-        $prefix = str_repeat('— ', $depth);
-        $suffix = $node->user_id ? ' · personal' : '';
-        $out[$node->id] = $prefix.$node->name.$suffix;
+        foreach ($byParent->get($parentId, []) as $node) {
+            if (isset($path[$node->id])) {
+                continue; // protección ante ciclos en datos antiguos
+            }
 
-        $children = QuestionGroup::query()
-            ->accessibleFor(Auth::user())
-            ->where('parent_id', $node->id)
-            ->orderBy('name')
-            ->get();
-
-        foreach ($children as $ch) {
-            $this->walkCategoryBranch($ch, $depth + 1, $out);
+            $out[$node->id] = str_repeat('— ', $depth).$node->name.($node->user_id ? ' · personal' : '');
+            $this->walkCategoryBranch($byParent, $node->id, $depth + 1, $out, $path + [$node->id => true]);
         }
     }
 
@@ -516,9 +585,8 @@ class QuestionBank extends Component
         $qQuery->whereHas('group', fn ($gq) => $gq->accessibleFor(Auth::user()))
             ->where(fn ($qq) => $qq->whereNull('user_id')->orWhere('user_id', Auth::id()));
 
-        $totalAccessibleQuestions = (clone $qQuery)->count();
-
         $questionRows = $qQuery->latest()->paginate($this->perPage);
+        $totalAccessibleQuestions = $questionRows->total(); // el paginador ya contó: evitamos un 2º COUNT
 
         return view('livewire.question-bank', [
             'categoryRows' => $categoryRows,

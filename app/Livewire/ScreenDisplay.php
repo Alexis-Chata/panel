@@ -15,6 +15,8 @@ class ScreenDisplay extends Component
 
     public function mount(GameSession $gameSession): void
     {
+        abort_unless($gameSession->isManageableBy(auth()->user()), 403, 'No tienes acceso a esta partida.');
+
         $this->gameSession = $gameSession->fresh();
         $this->loadCurrent();
     }

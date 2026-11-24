@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Livewire\Forms\GameSessionForm;
+use App\Models\Answer;
 use App\Models\Archivo;
 use App\Models\GameSession;
 use App\Models\Question;
@@ -10,6 +11,7 @@ use App\Models\QuestionGroup;
 use App\Models\SessionQuestion;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -35,8 +37,17 @@ class ManageSessions extends Component
 
     public string $poolQuestionSearch = '';
 
+    /** Solo el dueño (o Admin, o partidas sin dueño) puede tocar la partida. */
+    private function authorizeSession(?GameSession $gameSession): GameSession
+    {
+        abort_unless($gameSession && $gameSession->isManageableBy(Auth::user()), 403, 'No tienes acceso a esta partida.');
+
+        return $gameSession;
+    }
+
     public function toggleStudentViewMode(GameSession $gameSession): void
     {
+        $this->authorizeSession($gameSession);
         $gameSession->student_view_mode = $gameSession->student_view_mode === 'completo'
             ? 'solo_alternativas'
             : 'completo';
@@ -52,6 +63,7 @@ class ManageSessions extends Component
 
     public function removeArchivo(Archivo $archivo): void
     {
+        $this->authorizeSession($this->form->gameSession);
         $res = $this->form->deleteArchivo($archivo);
         $this->dispatch('toast', body: $res['message'] ?? 'Actualizado');
 
@@ -72,6 +84,7 @@ class ManageSessions extends Component
 
     public function editar(GameSession $gameSession): void
     {
+        $this->authorizeSession($gameSession);
         $this->form->set($gameSession);
         $this->uploads = [];
         $this->questionPickMode = 'random';
@@ -84,6 +97,8 @@ class ManageSessions extends Component
 
     public function duplicateSession(GameSession $gameSession): void
     {
+        $this->authorizeSession($gameSession);
+
         $copy = $gameSession->replicate([
             'code',
             'is_active',
@@ -102,12 +117,15 @@ class ManageSessions extends Component
         $copy->current_q_index = 0;
         $copy->current_q_started_at = null;
         $copy->starts_at = null;
-        $copy->save();
+        $copy->user_id = Auth::id(); // la copia es de quien la duplica
 
         $originalQuestions = SessionQuestion::query()
             ->where('game_session_id', $gameSession->id)
             ->orderBy('q_order')
             ->get();
+
+        $copy->questions_total = $originalQuestions->count();
+        $copy->save();
 
         if ($originalQuestions->isNotEmpty()) {
             $payload = [];
@@ -124,10 +142,6 @@ class ManageSessions extends Component
             }
             SessionQuestion::insert($payload);
         }
-
-        $copy->update([
-            'questions_total' => $originalQuestions->count(),
-        ]);
 
         session()->flash('ok', "Partida duplicada: {$copy->code}");
     }
@@ -161,7 +175,7 @@ class ManageSessions extends Component
 
     public function openConfigureQuestions(int $sessionId): void
     {
-        $session = GameSession::query()->findOrFail($sessionId);
+        $session = $this->authorizeSession(GameSession::query()->findOrFail($sessionId));
 
         $this->compositionSessionId = $session->id;
         $this->compositionQuestionGroupId = $session->question_group_id
@@ -218,36 +232,49 @@ class ManageSessions extends Component
             return;
         }
 
-        $session = GameSession::query()->findOrFail($this->compositionSessionId);
+        $session = $this->authorizeSession(GameSession::query()->findOrFail($this->compositionSessionId));
 
-        SessionQuestion::query()->where('game_session_id', $session->id)->delete();
+        // Recomponer borra las session_questions y, en cascada, las RESPUESTAS de los alumnos.
+        // Tampoco debe cambiar bajo los pies de una partida en curso.
+        $hasAnswers = Answer::whereIn('session_question_id', $session->sessionQuestions()->select('id'))->exists();
+        if ($session->is_running || $hasAnswers) {
+            $this->addError('compositionQuestionGroupId', 'Esta partida ya se jugó o está en curso: cambiar sus preguntas borraría los resultados. Duplícala para armar otra versión.');
 
-        $payload = [];
-        foreach ($orderedIds as $i => $qid) {
-            $payload[] = [
-                'game_session_id' => $session->id,
-                'question_id' => $qid,
-                'q_order' => $i,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
+            return;
         }
 
-        if ($payload !== []) {
-            SessionQuestion::insert($payload);
-        }
+        DB::transaction(function () use ($session, $orderedIds) {
+            SessionQuestion::query()->where('game_session_id', $session->id)->delete();
 
-        $usedGroupIds = Question::query()
-            ->whereIn('id', $orderedIds)
-            ->distinct()
-            ->pluck('question_group_id')
-            ->filter()
-            ->values();
+            $now = now();
+            $payload = [];
+            foreach ($orderedIds as $i => $qid) {
+                $payload[] = [
+                    'game_session_id' => $session->id,
+                    'question_id' => $qid,
+                    'q_order' => $i,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
 
-        $session->update([
-            'question_group_id' => $usedGroupIds->count() === 1 ? (int) $usedGroupIds->first() : null,
-            'questions_total' => count($orderedIds),
-        ]);
+            if ($payload !== []) {
+                SessionQuestion::insert($payload);
+            }
+
+            $usedGroupIds = Question::query()
+                ->whereIn('id', $orderedIds)
+                ->distinct()
+                ->pluck('question_group_id')
+                ->filter()
+                ->values();
+
+            $session->update([
+                'question_group_id' => $usedGroupIds->count() === 1 ? (int) $usedGroupIds->first() : null,
+                'questions_total' => count($orderedIds),
+                'current_q_index' => 0,
+            ]);
+        });
 
         $this->compositionSessionId = null;
         $this->compositionQuestionGroupId = null;
@@ -270,6 +297,10 @@ class ManageSessions extends Component
         ]);
 
         $isEdit = (bool) $this->form->gameSession?->id;
+
+        if ($isEdit) {
+            $this->authorizeSession($this->form->gameSession);
+        }
 
         if (! $isEdit) {
             $this->form->storeBare();
@@ -432,21 +463,28 @@ class ManageSessions extends Component
 
     public function toggleActive(GameSession $gameSession)
     {
+        $this->authorizeSession($gameSession);
         $gameSession->update(['is_active' => ! $gameSession->is_active]);
+        $gameSession->broadcastState();
     }
 
     public function endSession(GameSession $gameSession)
     {
+        $this->authorizeSession($gameSession);
         $gameSession->update([
             'is_active' => false,
             'is_running' => false,
             'is_paused' => false,
         ]);
+        // Avisar a alumnos/pantalla conectados para que vean la partida cerrada
+        $gameSession->broadcastState();
     }
 
     public function run(GameSession $gameSession)
     {
-        if ($gameSession->sessionQuestions()->count() === 0) {
+        $this->authorizeSession($gameSession);
+
+        if (! $gameSession->sessionQuestions()->exists()) {
             session()->flash('error', 'Configura las preguntas de la partida antes de ejecutar.');
 
             return $this->redirect(route('sessions.index'));
@@ -467,6 +505,8 @@ class ManageSessions extends Component
     public function render()
     {
         $sessions = GameSession::query()
+            ->manageableBy(Auth::user())
+            ->with('owner:id,name')
             ->latest()
             ->withCount('sessionQuestions')
             ->paginate(10);
@@ -477,7 +517,7 @@ class ManageSessions extends Component
             ->get();
 
         $compositionSession = $this->compositionSessionId
-            ? GameSession::query()->find($this->compositionSessionId)
+            ? GameSession::query()->manageableBy(Auth::user())->find($this->compositionSessionId)
             : null;
 
         $poolQuestions = collect();

@@ -1,37 +1,34 @@
 <?php
 
 use App\Models\GameSession;
-use App\Models\SessionParticipant;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });
 
-Broadcast::channel('session.{sessionId}', function ($user, int $sessionId) {
-    // Docente/Admin pueden oír siempre
-    if ($user->can('sessions.run')) return ['id' => $user->id, 'name' => $user->name];
-
-    // Estudiante: debe estar inscrito en la sesión
-    return SessionParticipant::where('game_session_id', $sessionId)
-        ->where('user_id', $user->id)->exists()
+/**
+ * Canal privado de la partida (estado, conteo, respuestas).
+ * Solo el docente con acceso a ESA partida (dueño/Admin/sin dueño) o un alumno inscrito.
+ */
+Broadcast::channel('session.{session}', function ($user, GameSession $session) {
+    return $session->isVisibleTo($user)
         ? ['id' => $user->id, 'name' => $user->name]
         : false;
 });
 
+/**
+ * Canal presence de la sala de espera. Antes autorizaba a cualquier usuario autenticado:
+ * cualquiera podía "aparecer" en la partida y ver la lista de presentes.
+ */
 Broadcast::channel('game-session.{session}', function ($user, GameSession $session) {
-    // Autoriza quién puede estar en la partida.
-    // Para MVP, puedes permitir a cualquier autenticado:
-    // if (! $user) return false;
+    if (! $session->isVisibleTo($user)) {
+        return false;
+    }
 
-    // Si ya guardas participantes por user_id, puedes validar así:
-    // $allowed = $session->participants()->where('user_id', $user->id)->exists();
-    // if (! $allowed) return false;
-
-    // Datos que verán los demás en el presence (aquí puedes retornar nickname/avatares)
     return [
-        'id'       => $user->id,
-        'name'     => $user->name,
-        'avatar'   => $user->profile_photo_url ?? null,
+        'id' => $user->id,
+        'name' => $user->name,
+        'avatar' => $user->profile_photo_url ?? null,
     ];
 });

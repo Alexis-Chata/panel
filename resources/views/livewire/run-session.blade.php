@@ -1,6 +1,7 @@
 <div x-data
     x-on:countdown.window="
         const action = ($event.detail && $event.detail.action) || 'advance';
+        const target = ($event.detail && Number.isInteger($event.detail.target)) ? $event.detail.target : null;
         let el = document.getElementById('countdown-box');
         el.classList.remove('d-none');
         el.innerText = '3';
@@ -11,7 +12,7 @@
             if (action === 'start') {
                 $wire.startNow();      // <--- llama directamente a startNow()
             } else {
-                $wire.advanceNow();
+                $wire.advanceNow(target);
             }
         }, 2100);
      ">
@@ -307,6 +308,12 @@
                                                     wire:click="toggleIgnore({{ $part->id }})">
                                                     {{ $part->is_ignored ? 'Reactivar' : 'Ignorar' }}
                                                 </button>
+                                                <button class="btn btn-outline-warning"
+                                                    title="Permite que el alumno vuelva a entrar desde otro dispositivo"
+                                                    wire:click="releaseDevice({{ $part->id }})"
+                                                    wire:confirm="¿Liberar el dispositivo de este participante? Podrá reingresar desde otro equipo.">
+                                                    <i class="fas fa-mobile-alt"></i>
+                                                </button>
                                             </div>
                                         </li>
                                     @empty
@@ -454,33 +461,22 @@
                     if (window.__panelSubs[key]) return;
                     window.__panelSubs[key] = true;
 
+                    // Agrupa ráfagas de respuestas (p. ej. 40 alumnos respondiendo a la vez) en 1 solo refresco
+                    let statsTimer = null;
+                    const refreshStatsDebounced = () => {
+                        clearTimeout(statsTimer);
+                        statsTimer = setTimeout(() => Livewire.dispatch('refreshStats'), 400);
+                    };
+
                     window.Echo.private(`session.${sid}`)
                         .listen('.GameSessionStateChanged', () => Livewire.dispatch('syncState'))
-                        .listen('.AnswerSubmitted', () => Livewire.dispatch('refreshStats'));
+                        .listen('.AnswerSubmitted', refreshStatsDebounced);
+
+                    // Presence: nuevo participante en la sala de espera
+                    window.Echo.join(`game-session.${sid}`)
+                        .listen('.participant.joined', () => Livewire.dispatch('render'));
                 }
                 ensure();
-
-                window.Echo.join(`game-session.${sid}`)
-                    .here((users) => {
-                        // Usuarios presentes al cargar
-                        console.log('Presentes:', users);
-                    })
-                    .joining((user) => {
-                        // Usuario acaba de conectarse al canal
-                        console.log('Se unió (presence):', user);
-                    })
-                    .leaving((user) => {
-                        // Usuario se fue del canal
-                        console.log('Salió (presence):', user);
-                    })
-                    .listen('.participant.joined', (e) => {
-                        // Tu evento custom: llega con { participant, total, joined_at }
-                        console.log('Evento participant.joined', e);
-                        // Aquí puedes actualizar contadores, listas, toasts, etc.
-                        // Por ejemplo:
-                        // document.getElementById('total-participants').innerText = e.total;
-                        window.Livewire?.dispatch('render');
-                    });
             });
         </script>
         {{-- Librería liviana de QR (frontend) --}}

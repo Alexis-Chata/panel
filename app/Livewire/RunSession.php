@@ -3,11 +3,13 @@
 namespace App\Livewire;
 
 use App\Events\GameCountdownStarted;
-use App\Events\GameSessionStateChanged;
 use App\Models\Answer;
+use App\Models\DeviceLock;
 use App\Models\GameSession;
 use App\Models\SessionParticipant;
 use App\Models\SessionQuestion;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -17,11 +19,13 @@ class RunSession extends Component
 
     public ?SessionQuestion $current = null;
 
+    /** true mientras corre el conteo 3-2-1 (oculta "Iniciar" y evita dobles avances) */
     public bool $countdownActive = false;
 
-    // Inicializar el componente
     public function mount(GameSession $gameSession)
     {
+        abort_unless($gameSession->isManageableBy(auth()->user()), 403, 'No tienes acceso a esta partida.');
+
         $this->gameSession = $gameSession->fresh();
 
         if ($this->gameSession->sessionQuestions()->count() === 0) {
@@ -32,76 +36,75 @@ class RunSession extends Component
         }
     }
 
+    /* ======================== Cronómetro ======================== */
+
     public function extendTime(int $seconds = 15): void
     {
-        $this->gameSession->refresh();
-        $this->loadCurrent();
-
-        if (! $this->gameSession->is_running || $this->gameSession->is_paused || ! $this->current) {
-            $this->dispatch('toast', body: 'No hay una pregunta corriendo para ajustar tiempo.');
-
+        if (! $started = $this->runningQuestionStart()) {
             return;
         }
 
-        $started = $this->gameSession->current_q_started_at;
-        if (! $started) {
-            $this->dispatch('toast', body: 'El cronómetro aún no ha iniciado.');
-
-            return;
-        }
-
-        $duration = (int) ($this->current->timer_override ?? $this->gameSession->timer_default);
+        $duration = $this->currentDuration();
         $elapsed = $started->diffInSeconds(now());
-        // Permitir incluso si ya estaba por expirar: simplemente ampliamos la duración total
         $newDuration = max(5, $duration + max(1, $seconds));
 
         $this->current->update(['timer_override' => $newDuration]);
+        $this->broadcastState();
 
-        $this->loadCurrent();   // para que la vista actualice data-duration
-        $this->broadcastState(); // notifica a pantallas/clients
-        $left = max(0, $newDuration - $elapsed);
+        $left = (int) max(0, $newDuration - $elapsed);
         $this->dispatch('toast', body: "Tiempo extendido. Restan ~{$left}s");
     }
 
     public function reduceTime(int $seconds = 5): void
     {
+        if (! $started = $this->runningQuestionStart()) {
+            return;
+        }
+
+        $duration = $this->currentDuration();
+        $elapsed = $started->diffInSeconds(now());
+
+        // Regla: si quedan ≤ 5s ya no se puede reducir
+        if ($duration - $elapsed <= 5) {
+            $this->dispatch('toast', body: 'Quedan 5 segundos o menos — ya no se puede reducir el tiempo.');
+
+            return;
+        }
+
+        // Reducimos garantizando al menos 5s restantes
+        $newDuration = (int) ceil(max($elapsed + 5, $duration - max(1, $seconds)));
+
+        $this->current->update(['timer_override' => $newDuration]);
+        $this->broadcastState();
+
+        $left = (int) max(0, $newDuration - $elapsed);
+        $this->dispatch('toast', body: "Tiempo reducido. Restan ~{$left}s");
+    }
+
+    /** Devuelve el inicio de la pregunta en curso o null (avisando al docente). */
+    private function runningQuestionStart(): ?\Carbon\CarbonInterface
+    {
         $this->gameSession->refresh();
         $this->loadCurrent();
 
         if (! $this->gameSession->is_running || $this->gameSession->is_paused || ! $this->current) {
             $this->dispatch('toast', body: 'No hay una pregunta corriendo para ajustar tiempo.');
 
-            return;
+            return null;
         }
 
-        $started = $this->gameSession->current_q_started_at;
-        if (! $started) {
+        if (! $this->gameSession->current_q_started_at) {
             $this->dispatch('toast', body: 'El cronómetro aún no ha iniciado.');
 
-            return;
+            return null;
         }
 
-        $duration = (int) ($this->current->timer_override ?? $this->gameSession->timer_default);
-        $elapsed = $started->diffInSeconds(now());
-        $left = $duration - $elapsed;
+        return $this->gameSession->current_q_started_at;
+    }
 
-        // Regla: si quedan ≤ 5s ya no se puede reducir
-        if ($left <= 5) {
-            $this->dispatch('toast', body: 'Quedan 5 segundos o menos — ya no se puede reducir el tiempo.');
-
-            return;
-        }
-
-        // Reducimos pero garantizando al menos 5s restantes
-        $reduceBy = max(1, $seconds);
-        $newDuration = max($elapsed + 5, $duration - $reduceBy);
-
-        $this->current->update(['timer_override' => $newDuration]);
-
-        $this->loadCurrent();
-        $this->broadcastState();
-        $newLeft = max(0, $newDuration - $elapsed);
-        $this->dispatch('toast', body: "Tiempo reducido. Restan ~{$newLeft}s");
+    private function currentDuration(): int
+    {
+        return (int) ($this->current?->timer_override ?? $this->gameSession->timer_default);
     }
 
     #[On('checkTimeout')]
@@ -110,50 +113,38 @@ class RunSession extends Component
         $this->gameSession->refresh();
         $this->loadCurrent();
 
-        // Debe haber una pregunta corriendo y no estar en pausa
         if (! $this->gameSession->is_running || $this->gameSession->is_paused || ! $this->current) {
             return;
         }
 
         $started = $this->gameSession->current_q_started_at;
-        if (! $started) {
+        $duration = $this->currentDuration();
+        if (! $started || $duration <= 0 || $started->diffInSeconds(now()) < $duration) {
             return;
         }
 
-        // Duración (override o default)
-        $duration = (int) ($this->current->timer_override ?? $this->gameSession->timer_default);
-        if ($duration <= 0) {
-            return;
-        }
-
-        // ¿Se agotó el tiempo?
-        $elapsed = $started->diffInSeconds(now());
-        if ($elapsed < $duration) {
-            return;
-        }
-
-        // ¿NADIE respondió?
-        $answers = Answer::where('session_question_id', $this->current->id)->count();
+        $hasAnswers = Answer::where('session_question_id', $this->current->id)->exists();
 
         // Revela (pausa) automáticamente
         $this->gameSession->update(['is_paused' => true]);
         $this->broadcastState();
         $this->dispatch(
             'toast',
-            body: $answers > 0
+            body: $hasAnswers
                 ? 'Tiempo agotado — se revela la respuesta.'
                 : 'Tiempo agotado — se revela la respuesta (sin respuestas registradas).'
         );
     }
 
-    // Cargar/refrescar la pregunta actual y métricas asociadas
     public function loadCurrent(): void
     {
-        $index = $this->gameSession->current_q_index;
         $this->current = $this->gameSession->sessionQuestions()
             ->with('question.options')
-            ->where('q_order', $index)->first();
+            ->where('q_order', $this->gameSession->current_q_index)
+            ->first();
     }
+
+    /* ======================== Flujo de la partida ======================== */
 
     public function start(): void
     {
@@ -170,7 +161,10 @@ class RunSession extends Component
     #[On('run-start-confirmed')]
     public function startConfirmed(): void
     {
-        // Defensa extra por si llegan eventos fuera de orden.
+        if ($this->countdownActive) {
+            return; // ya hay un conteo en curso
+        }
+
         if ($this->activeParticipantsCount() < 1) {
             $this->dispatch('toast', body: 'Necesitas al menos 1 participante para iniciar.');
 
@@ -185,17 +179,9 @@ class RunSession extends Component
             'current_q_started_at' => null,
         ]);
 
-        // (Opcional) Si usas el flag de UI para ocultar "Iniciar" durante el conteo:
-        if (property_exists($this, 'countdownActive')) {
-            $this->countdownActive = true;
-        }
+        $this->countdownActive = true;
 
-        GameCountdownStarted::dispatch(
-            $this->gameSession->id,
-            3,
-            'start',
-            $this->gameSession->current_q_index
-        );
+        GameCountdownStarted::dispatch($this->gameSession->id, 3, 'start', $this->gameSession->current_q_index);
 
         // RUN hace el 3-2-1 y luego llama a $wire.startNow()
         $this->dispatch('countdown', action: 'start');
@@ -204,17 +190,18 @@ class RunSession extends Component
 
     public function startNow(): void
     {
-        // Defensa extra por si alguien dispara startNow() sin participantes
+        $this->countdownActive = false;
+
         if ($this->activeParticipantsCount() < 1) {
             $this->dispatch('toast', body: 'No hay participantes activos. No se puede iniciar.');
-            if (property_exists($this, 'countdownActive')) {
-                $this->countdownActive = false;
-            }
 
             return;
         }
 
         $this->gameSession->refresh();
+        if ($this->gameSession->is_running) {
+            return; // ya iniciada (doble llamada)
+        }
 
         $this->gameSession->update([
             'is_active' => true,
@@ -223,21 +210,40 @@ class RunSession extends Component
             'current_q_started_at' => now(),
         ]);
 
-        if (property_exists($this, 'countdownActive')) {
-            $this->countdownActive = false;
-        }
-
         $this->loadCurrent();
         $this->broadcastState();
         $this->dispatch('toast', body: '¡Arrancamos!');
     }
 
-    // Pausar/Reanudar
+    /** Pausar / Reanudar sin "consumir" el tiempo que dura la pausa. */
     public function togglePause(): void
     {
-        $this->gameSession->update(['is_paused' => ! $this->gameSession->is_paused]);
         $this->gameSession->refresh();
+        $key = $this->pausedAtKey();
+
+        if (! $this->gameSession->is_paused) {
+            Cache::put($key, now()->getTimestampMs(), now()->addHours(6));
+            $this->gameSession->update(['is_paused' => true]);
+        } else {
+            $changes = ['is_paused' => false];
+            $pausedAt = Cache::pull($key);
+            $started = $this->gameSession->current_q_started_at;
+
+            // Desplazamos el inicio lo que duró la pausa: el tiempo pausado no cuenta
+            if ($pausedAt && $started) {
+                $pausedMs = max(0, now()->getTimestampMs() - (int) $pausedAt);
+                $changes['current_q_started_at'] = $started->copy()->addMilliseconds($pausedMs);
+            }
+
+            $this->gameSession->update($changes);
+        }
+
         $this->broadcastState();
+    }
+
+    private function pausedAtKey(): string
+    {
+        return "game_session:{$this->gameSession->id}:paused_at";
     }
 
     /** Revela la respuesta correcta (pausa para explicación) */
@@ -246,16 +252,22 @@ class RunSession extends Component
     {
         $this->gameSession->refresh();
         if (! $this->gameSession->is_paused) {
+            Cache::forget($this->pausedAtKey());
             $this->gameSession->update(['is_paused' => true]);
-            // No guardamos un flag aparte: los alumnos determinan correcta leyendo la opción correcta
             $this->dispatch('toast', body: 'Respuesta revelada y pausa activa');
-            $this->broadcastState(); // hará que el RUN/SCRREEN se refresquen
+            $this->broadcastState();
         }
     }
 
-    // Ajusta nextQuestion para usar el mismo patrón de conteo
     public function nextQuestion(): void
     {
+        if ($this->countdownActive) {
+            return; // evita doble avance por doble clic
+        }
+
+        $this->gameSession->refresh();
+        $this->loadCurrent();
+
         if ($this->hasPendingShortAnswersToGrade()) {
             $this->dispatch('run-short-needs-grading');
 
@@ -265,6 +277,7 @@ class RunSession extends Component
         $next = $this->gameSession->current_q_index + 1;
 
         if ($next >= $this->gameSession->questions_total) {
+            Cache::forget($this->pausedAtKey());
             $this->gameSession->update([
                 'is_active' => false,
                 'is_running' => false,
@@ -272,30 +285,30 @@ class RunSession extends Component
                 'current_q_index' => $this->gameSession->questions_total,
                 'current_q_started_at' => null,
             ]);
-            $this->countdownActive = false;
             $this->broadcastState();
             $this->redirectRoute('winners', ['gameSession' => $this->gameSession->id], navigate: true);
 
             return;
         }
 
-        $this->countdownActive = true; // <- ocultar "Iniciar" / mostrar resto durante el conteo
+        $this->countdownActive = true;
 
-        GameCountdownStarted::dispatch(
-            $this->gameSession->id,
-            3,
-            'advance',
-            $next
-        );
+        GameCountdownStarted::dispatch($this->gameSession->id, 3, 'advance', $next);
 
-        $this->dispatch('countdown', action: 'advance');
+        $this->dispatch('countdown', action: 'advance', target: $next);
     }
 
-    /** Listener desde JS tras el conteo */
+    /** Llamado desde JS tras el conteo 3-2-1 */
     #[On('advanceNow')]
-    public function advanceNow(): void
+    public function advanceNow(?int $target = null): void
     {
+        $this->countdownActive = false;
         $this->gameSession->refresh();
+
+        // Conteo obsoleto: ya se avanzó (p. ej. otra pestaña del docente)
+        if ($target !== null && $this->gameSession->current_q_index + 1 !== $target) {
+            return;
+        }
 
         if (! $this->gameSession->is_paused) {
             $this->revealAndPause();
@@ -303,198 +316,35 @@ class RunSession extends Component
             return;
         }
 
-        $this->gameSession->increment('current_q_index');
+        Cache::forget($this->pausedAtKey());
         $this->gameSession->update([
+            'current_q_index' => $this->gameSession->current_q_index + 1,
             'is_paused' => false,
             'is_running' => true,
             'current_q_started_at' => now(),
         ]);
 
-        $this->countdownActive = false; // <- terminó el conteo
         $this->loadCurrent();
         $this->broadcastState();
-    }
-
-    // Contar cuántos participantes deben responder.
-    private function participantsCount(): int
-    {
-        return SessionParticipant::where('game_session_id', $this->gameSession->id)->count();
-    }
-
-    /** Resumen por opción: [ ['label'=>'A','option_id'=>1,'count'=>5,'is_correct'=>true], ... ] */
-    private function optionDistribution(): array
-    {
-        if (! $this->current) {
-            return [];
-        }
-
-        $opts = $this->current->question->options()->orderBy('opt_order')->get(['id', 'label', 'is_correct']);
-        $counts = Answer::selectRaw('question_option_id, COUNT(*) as c')
-            ->where('session_question_id', $this->current->id)
-            ->whereNotNull('question_option_id')
-            ->groupBy('question_option_id')
-            ->pluck('c', 'question_option_id');
-
-        return $opts->map(function ($o) use ($counts) {
-            return [
-                'label' => $o->label,
-                'option_id' => $o->id,
-                'count' => (int) ($counts[$o->id] ?? 0),
-                'is_correct' => (bool) $o->is_correct,
-            ];
-        })->toArray();
-    }
-
-    /** Total que ya respondió (incluye los que no marcaron opción y quedaron en null) */
-    private function answeredCount(): int
-    {
-        if (! $this->current) {
-            return 0;
-        }
-
-        return Answer::where('session_question_id', $this->current->id)->count();
-    }
-
-    /** Correctas registradas */
-    private function correctCount(): int
-    {
-        if (! $this->current) {
-            return 0;
-        }
-
-        return Answer::where('session_question_id', $this->current->id)->where('is_correct', true)->count();
-    }
-
-    /** Top 5 en vivo (score desc, tiempo asc) */
-    private function liveTop(): \Illuminate\Support\Collection
-    {
-        return SessionParticipant::where('game_session_id', $this->gameSession->id)
-            ->with('user:id,name')
-            ->orderByDesc('score')->orderBy('time_total_ms')->take(5)->get();
-    }
-
-    // Auto-revelar cuando todos ya contestaron.
-    private function revealIfAllAnswered(): void
-    {
-        if (! $this->gameSession->is_running || $this->gameSession->is_paused || ! $this->current) {
-            return;
-        }
-
-        $pActivos = $this->activeParticipantsCount();
-        if ($pActivos === 0) {
-            return;
-        }
-
-        $aActivos = $this->answeredActiveCount();
-
-        if ($aActivos >= $pActivos) {
-            $this->gameSession->update(['is_paused' => true]);
-            $this->broadcastState();
-            $this->dispatch('toast', body: 'Respondieron los participantes activos — respuesta revelada');
-        }
-    }
-
-    // Enviar un snapshot del estado a los clientes.
-    private function broadcastState(): void
-    {
-        $s = $this->gameSession->fresh();
-        $duration = (int) ($this->current?->timer_override ?? $s->timer_default);
-
-        GameSessionStateChanged::dispatch($s->id, [
-            'is_active' => $s->is_active,
-            'is_running' => $s->is_running,
-            'is_paused' => $s->is_paused,
-            'current_q_index' => $s->current_q_index,
-            'current_q_started_at' => optional($s->current_q_started_at)?->toIso8601String(),
-            'questions_total' => $s->questions_total,
-            'duration' => $duration, // <- extra; tu cliente puede ignorarlo si no lo usa
-        ]);
     }
 
     #[On('syncState')]
     public function syncState(): void
     {
-        $this->gameSession = $this->gameSession->fresh();
+        $this->gameSession->refresh();
         $this->loadCurrent();
     }
 
-    private function correctCountActive(): int
-    {
-        if (! $this->current) {
-            return 0;
-        }
+    /** Llega por broadcast cuando un alumno responde: basta con re-renderizar. */
+    #[On('refreshStats')]
+    public function refreshStats(): void {}
 
-        $activeIds = SessionParticipant::where('game_session_id', $this->gameSession->id)
-            ->where('is_ignored', false)
-            ->pluck('id');
+    /* ======================== Participantes y calificación ======================== */
 
-        return Answer::where('session_question_id', $this->current->id)
-            ->whereIn('session_participant_id', $activeIds)
-            ->where('is_correct', true)
-            ->count();
-    }
-
-    private function optionDistributionActive(): array
-    {
-        if (! $this->current) {
-            return [];
-        }
-
-        // 👉 Si es pregunta corta, no hay distribución de alternativas
-        if ($this->current->question->qtype === 'short') {
-            return [];
-        }
-
-        $activeIds = SessionParticipant::where('game_session_id', $this->gameSession->id)
-            ->where('is_ignored', false)
-            ->pluck('id');
-
-        $opts = $this->current->question->options()->orderBy('opt_order')->get(['id', 'label', 'is_correct']);
-
-        $counts = Answer::selectRaw('question_option_id, COUNT(*) as c')
-            ->where('session_question_id', $this->current->id)
-            ->whereIn('session_participant_id', $activeIds)
-            ->whereNotNull('question_option_id')
-            ->groupBy('question_option_id')
-            ->pluck('c', 'question_option_id');
-
-        return $opts->map(fn ($o) => [
-            'label' => $o->label,
-            'option_id' => $o->id,
-            'count' => (int) ($counts[$o->id] ?? 0),
-            'is_correct' => (bool) $o->is_correct,
-        ])->toArray();
-    }
-
-    // Solo participantes activos (no ignorados) en esta sesión
-    private function activeParticipantsCount(): int
-    {
-        return SessionParticipant::where('game_session_id', $this->gameSession->id)
-            ->where('is_ignored', false)
-            ->count();
-    }
-
-    // Respondidos entre los activos (para la métrica “Respondidos / Activos”)
-    private function answeredActiveCount(): int
-    {
-        if (! $this->current) {
-            return 0;
-        }
-
-        $activeIds = SessionParticipant::where('game_session_id', $this->gameSession->id)
-            ->where('is_ignored', false)
-            ->pluck('id');
-
-        return Answer::where('session_question_id', $this->current->id)
-            ->whereIn('session_participant_id', $activeIds)
-            ->count();
-    }
-
-    // Alternar ignorado desde la pantalla RUN
     public function toggleIgnore(int $participantId): void
     {
         $p = SessionParticipant::where('game_session_id', $this->gameSession->id)
-            ->where('id', $participantId)
+            ->whereKey($participantId)
             ->firstOrFail();
 
         $p->update(['is_ignored' => ! $p->is_ignored]);
@@ -504,18 +354,30 @@ class RunSession extends Component
             : 'Participante reactivado.');
 
         $this->broadcastState();
-        $this->dispatch('render');
+    }
+
+    /** Borra el bloqueo de dispositivo para que el alumno reingrese desde otro equipo. */
+    public function releaseDevice(int $participantId): void
+    {
+        $p = SessionParticipant::where('game_session_id', $this->gameSession->id)
+            ->whereKey($participantId)
+            ->firstOrFail();
+
+        DeviceLock::where('game_session_id', $this->gameSession->id)
+            ->where('user_id', $p->user_id)
+            ->delete();
+
+        $this->dispatch('toast', body: 'Dispositivo liberado: el alumno puede reingresar con el código.');
     }
 
     public function markShortCorrect(int $answerId, bool $correct = true): void
     {
-        // Asegurar que haya pregunta actual
         if (! $this->current) {
             return;
         }
 
-        // Buscar la respuesta SOLO de la pregunta actual (por seguridad)
-        $answer = Answer::where('id', $answerId)
+        // Solo respuestas de la pregunta actual (por seguridad)
+        $answer = Answer::whereKey($answerId)
             ->where('session_question_id', $this->current->id)
             ->first();
 
@@ -523,19 +385,18 @@ class RunSession extends Component
             return;
         }
 
-        // Marcar como correcta/incorrecta
         $answer->is_correct = $correct;
-        $answer->score = $correct ? 1 : 0; // si luego quieres ponderar, aquí lo cambias
+        $answer->score = $correct ? 1 : 0;
         $answer->graded_at = now();
         $answer->save();
 
-        // Recalcular totales del participante
-        $sum = Answer::where('session_participant_id', $answer->session_participant_id);
+        // Recalcular totales del participante en una sola consulta
+        $totals = Answer::where('session_participant_id', $answer->session_participant_id)
+            ->selectRaw('COALESCE(SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END),0) AS score, COALESCE(SUM(time_ms),0) AS time_total_ms')
+            ->first();
 
-        SessionParticipant::where('id', $answer->session_participant_id)->update([
-            'score' => (clone $sum)->where('is_correct', true)->count(),
-            'time_total_ms' => (clone $sum)->sum('time_ms'),
-        ]);
+        SessionParticipant::whereKey($answer->session_participant_id)
+            ->update($totals->only(['score', 'time_total_ms']));
 
         $this->dispatch(
             'toast',
@@ -543,65 +404,124 @@ class RunSession extends Component
         );
     }
 
-    /** Lista completa de participantes ordenados por score DESC y tiempo ASC */
-    private function participantsList(): \Illuminate\Support\Collection
+    /* ======================== Helpers ======================== */
+
+    private function activeParticipantIds(): Collection
     {
         return SessionParticipant::where('game_session_id', $this->gameSession->id)
-            ->with('user:id,name')
-            ->orderByDesc('score')
-            ->orderBy('time_total_ms')
-            ->get();
+            ->where('is_ignored', false)
+            ->pluck('id');
     }
 
-    /**
-     * Si la pregunta actual es abierta, exige revisar todas las respuestas activas.
-     */
+    private function activeParticipantsCount(): int
+    {
+        return SessionParticipant::where('game_session_id', $this->gameSession->id)
+            ->where('is_ignored', false)
+            ->count();
+    }
+
+    /** Si la pregunta actual es abierta, exige calificar todas las respuestas activas. */
     private function hasPendingShortAnswersToGrade(): bool
     {
-        if (! $this->current || ! $this->current->question || $this->current->question->qtype !== 'short') {
+        if ($this->current?->question?->qtype !== 'short') {
             return false;
         }
 
-        $activeIds = SessionParticipant::where('game_session_id', $this->gameSession->id)
-            ->where('is_ignored', false)
-            ->pluck('id');
-
         return Answer::where('session_question_id', $this->current->id)
-            ->whereIn('session_participant_id', $activeIds)
+            ->whereIn('session_participant_id', $this->activeParticipantIds())
             ->whereNotNull('answered_at')
             ->where('is_correct', false)
             ->whereNull('graded_at')
             ->exists();
     }
 
-    // Renderizar la vista Livewire.
+    /**
+     * Métricas de la pregunta actual en UNA consulta agregada (solo participantes activos):
+     * respondidos, correctas y conteo por alternativa.
+     */
+    private function currentStats(Collection $activeIds): array
+    {
+        if (! $this->current || $activeIds->isEmpty()) {
+            return ['answered' => 0, 'corrects' => 0, 'byOption' => collect()];
+        }
+
+        $rows = Answer::where('session_question_id', $this->current->id)
+            ->whereIn('session_participant_id', $activeIds)
+            ->selectRaw('question_option_id, COUNT(*) AS c, SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS ok')
+            ->groupBy('question_option_id')
+            ->get();
+
+        return [
+            'answered' => (int) $rows->sum('c'),
+            'corrects' => (int) $rows->sum('ok'),
+            'byOption' => $rows->whereNotNull('question_option_id')->pluck('c', 'question_option_id'),
+        ];
+    }
+
+    /** Auto-revelar cuando todos los activos ya contestaron. */
+    private function revealIfAllAnswered(int $pActivos, int $aActivos): void
+    {
+        if (! $this->gameSession->is_running || $this->gameSession->is_paused || ! $this->current) {
+            return;
+        }
+
+        if ($pActivos > 0 && $aActivos >= $pActivos) {
+            $this->gameSession->update(['is_paused' => true]);
+            $this->broadcastState();
+            $this->dispatch('toast', body: 'Respondieron los participantes activos — respuesta revelada');
+        }
+    }
+
+    /** Envía un snapshot del estado a todos los clientes. */
+    private function broadcastState(): void
+    {
+        $this->gameSession->fresh()->broadcastState($this->currentDuration());
+    }
+
     #[On('render')]
     public function render()
     {
         $this->gameSession->refresh();
         $this->loadCurrent();
-        $this->revealIfAllAnswered();
 
-        $pCount = $this->activeParticipantsCount();
-        $answered = $this->answeredActiveCount();
-        $corrects = $this->correctCountActive();
-        $dist = $this->optionDistributionActive();
-        $top = $this->liveTop();
-        $participants = $this->participantsList();
+        // Participantes: UNA consulta (ordenada por ranking) reutilizada para conteo, top y lista
+        $participants = SessionParticipant::where('game_session_id', $this->gameSession->id)
+            ->with('user:id,name')
+            ->orderByDesc('score')
+            ->orderBy('time_total_ms')
+            ->get();
 
-        // ▼ NUEVO: respuestas cortas de la pregunta actual
+        $activeIds = $participants->where('is_ignored', false)->pluck('id');
+        $pCount = $activeIds->count();
+        $top = $participants->take(5);
+
+        $stats = $this->currentStats($activeIds);
+        $answered = $stats['answered'];
+        $corrects = $stats['corrects'];
+
+        $this->revealIfAllAnswered($pCount, $answered);
+
+        $dist = [];
         $shortAnswers = collect();
         $shortParticipants = collect();
 
-        if ($this->current && $this->current->question && $this->current->question->qtype === 'short') {
-            $shortAnswers = Answer::where('session_question_id', $this->current->id)
-                ->orderBy('created_at')
-                ->get();
-
-            $shortParticipants = SessionParticipant::with('user:id,name')
-                ->whereIn('id', $shortAnswers->pluck('session_participant_id')->unique())
-                ->get()
-                ->keyBy('id');
+        if ($this->current?->question) {
+            if ($this->current->question->qtype === 'short') {
+                $shortAnswers = Answer::where('session_question_id', $this->current->id)
+                    ->orderBy('created_at')
+                    ->get();
+                $shortParticipants = $participants->keyBy('id')
+                    ->only($shortAnswers->pluck('session_participant_id')->unique()->all());
+            } else {
+                $dist = $this->current->question->options
+                    ->sortBy('opt_order')
+                    ->map(fn ($o) => [
+                        'label' => $o->label,
+                        'option_id' => $o->id,
+                        'count' => (int) ($stats['byOption'][$o->id] ?? 0),
+                        'is_correct' => (bool) $o->is_correct,
+                    ])->values()->toArray();
+            }
         }
 
         return view('livewire.run-session', compact(
@@ -611,12 +531,11 @@ class RunSession extends Component
             'dist',
             'top',
             'participants',
-            'shortAnswers',       // ▼ NUEVO
-            'shortParticipants'   // ▼ NUEVO
-        ))
-            ->layout('layouts.adminlte', [
-                'title' => 'Ejecutar Partida',
-                'header' => ($this->gameSession->title ?? 'Partida').' ['.$this->gameSession->code.']',
-            ]);
+            'shortAnswers',
+            'shortParticipants'
+        ))->layout('layouts.adminlte', [
+            'title' => 'Ejecutar Partida',
+            'header' => ($this->gameSession->title ?? 'Partida').' ['.$this->gameSession->code.']',
+        ]);
     }
 }
